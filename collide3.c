@@ -201,7 +201,7 @@ fxx(collide3)(const fxx * D, const u32 N, const fxx d,
                 for(u32 pp = ht_start; pp < ht_end; pp++) {
                     fxx pd2 = eudist2(HT[pp].X, HT[kk].X);
                     if(pd2 < d2) { // squared distances
-                        cb(HT[pp].idx, HT[kk].idx, d2, cb_data);
+                        cb(HT[pp].idx, HT[kk].idx, pd2, cb_data);
                         counter++;
                     }
                 }
