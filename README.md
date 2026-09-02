@@ -8,18 +8,16 @@ distributed. Used in
 The implementation combines spatial hashing/spatial partitioning (each
 bin corresponds to a 3D box) with [counting
 sort](https://en.wikipedia.org/wiki/Counting_sort) to generate a hash
-table with load a load factor of 100%.
+table with a load factor of 100%.
 
-The choice of hash table does prevents efficient updates (in any
-obvious way) and hence there is no API to update the hash table when
-the points have changed.
+The API does not allow any updates of the point data, since the choice
+of hash table prevents efficient updates, at least in any obvious way.
 
 ## API and Usage
 
 See `collide3.h` for the latest version and usage notes. In essence,
-if the interface asks for points and a callback function that is used
-for every collision. See also the file `test/test_collide3.c` for
-examples.
+if the interface asks for points and a callback function to be used on
+each collision. See also the file `test/test_collide3.c` for examples.
 
 ``` c
 int
@@ -31,11 +29,8 @@ collide3_f32(const float * points,
 
 ## Performance indicators
 
-For ideally distributed points, the performance is close to linear in
-the number of points.
-
 In this test, the points were randomly distributed in $`[-1,1]^3`$ and
-search radius of $`2*n^{-1/3}`$ was chosen.
+search radius of $`2*n^{-1/3}`$ was used.
 
 For 32-bit floating points:
 
@@ -59,62 +54,64 @@ For 32-bit floating points:
 
 <details><summary>Results 64-bit floating points</summary>
 
-| method |    N | t_construct [ms] | t_scan [ms] | t_total [ms] |  mem [kb] |
-|  ----  | ---: |     ---:         | ---:        | ---:         | ---:     |
-| collide3 | 1,024 | 0.01 |  0.01 | 0.03 | 33.28 |
-| collide3 | 2,048 | 0.03 |  0.02 | 0.05 | 66.92 |
-| collide3 | 4,096 | 0.06 |  0.05 | 0.11 | 134.00 |
-| collide3 | 8,192 | 0.10 |  0.08 | 0.19 | 267.48 |
-| collide3 | 16,384 | 0.22 |  0.17 | 0.40 | 535.28 |
-| collide3 | 32,768 | 0.46 |  0.35 | 0.80 | 1,071.92 |
-| collide3 | 65,536 | 0.92 |  0.72 | 1.63 | 2,145.83 |
-| collide3 | 131,072 | 2.34 |  1.55 | 3.89 | 4,291.87 |
-| collide3 | 262,144 | 5.46 |  3.14 | 8.59 | 8,591.23 |
-| collide3 | 524,288 | 13.16 |  6.14 | 19.30 | 17,192.52 |
-| collide3 | 1,048,576 | 39.60 |  13.41 | 53.01 | 34,375.96 |
-| collide3 | 2,097,152 | 93.16 |  29.01 | 122.17 | 68,729.77 |
-| collide3 | 4,194,304 | 217.87 |  58.82 | 276.68 | 137,540.08 |
-| collide3 | 8,388,608 | 523.94 |  117.17 | 641.10 | 275,007.60 |
-| collide3 | 16,777,216 | 1,539.67 |  219.36 | 1,759.03 | 550,102.72 |
+| method   |          N | t_construct [ms] | t_scan [ms] | t_total [ms] |   mem [kb] |
+|----------|-----------:|-----------------:|------------:|-------------:|-----------:|
+| collide3 |      1,024 |             0.01 |        0.01 |         0.03 |      33.28 |
+| collide3 |      2,048 |             0.03 |        0.02 |         0.05 |      66.92 |
+| collide3 |      4,096 |             0.06 |        0.05 |         0.11 |     134.00 |
+| collide3 |      8,192 |             0.10 |        0.08 |         0.19 |     267.48 |
+| collide3 |     16,384 |             0.22 |        0.17 |         0.40 |     535.28 |
+| collide3 |     32,768 |             0.46 |        0.35 |         0.80 |   1,071.92 |
+| collide3 |     65,536 |             0.92 |        0.72 |         1.63 |   2,145.83 |
+| collide3 |    131,072 |             2.34 |        1.55 |         3.89 |   4,291.87 |
+| collide3 |    262,144 |             5.46 |        3.14 |         8.59 |   8,591.23 |
+| collide3 |    524,288 |            13.16 |        6.14 |        19.30 |  17,192.52 |
+| collide3 |  1,048,576 |            39.60 |       13.41 |        53.01 |  34,375.96 |
+| collide3 |  2,097,152 |            93.16 |       29.01 |       122.17 |  68,729.77 |
+| collide3 |  4,194,304 |           217.87 |       58.82 |       276.68 | 137,540.08 |
+| collide3 |  8,388,608 |           523.94 |      117.17 |       641.10 | 275,007.60 |
+| collide3 | 16,777,216 |         1,539.67 |      219.36 |     1,759.03 | 550,102.72 |
 
 </details>
 
 ## Comparisons
 
-Not sure what to compare with really since this is quite specialized.
 
-A [k-d tree](https://en.wikipedia.org/wiki/K-d_tree) could of course
+A [k-d tree](https://en.wikipedia.org/wiki/K-d_tree) can of course
 also be used for the same problem (having much broader applicability).
 
-Just to have some reference point I've run `scipy.spatial.KDTree` for
-the same problem as above. For that purpose I used:
+Just to have some reference point I've run
+[`scipy.spatial.KDTree`](https://docs.scipy.org/doc/scipy/reference/spatial.html)
+with similar input as above (see `test/test_scipy_spatial_KDTree.py`),
+which boils down to:
 
 ``` Python
+tree = KDTree(X)
 # k is the 3D kissing number
 results = tree.query(X, k=12, p=2, distance_upper_bound=radius)
 ```
 
-| method |          N | t_construct [ms] | t_scan [ms] | t_total [ms] |
-|--------|-----------:|-----------------:|------------:|-------------:|
-| KDTree |      1,024 |             0.22 |        0.94 |         1.16 |
-| KDTree |      2,048 |             0.45 |        1.96 |         2.41 |
-| KDTree |      4,096 |             0.84 |        3.84 |         4.68 |
-| KDTree |      8,192 |             1.73 |        8.09 |         9.82 |
-| KDTree |     16,384 |             3.83 |       17.95 |        21.79 |
-| KDTree |     32,768 |             9.11 |       41.76 |        50.88 |
-| KDTree |     65,536 |            20.39 |       88.60 |       108.99 |
-| KDTree |    131,072 |            42.82 |      180.69 |       223.51 |
-| KDTree |    262,144 |            79.05 |      404.80 |       483.86 |
-| KDTree |    524,288 |           178.63 |    1,392.75 |     1,571.38 |
-| KDTree |  1,048,576 |           511.71 |    3,403.33 |     3,915.05 |
-| KDTree |  2,097,152 |           973.00 |    7,075.86 |     8,048.86 |
-| KDTree |  4,194,304 |         2,212.09 |   15,661.35 |    17,873.44 |
-| KDTree |  8,388,608 |         4,756.68 |   33,342.59 |    38,099.27 |
-| KDTree | 16,777,216 |        11,126.19 |   69,749.39 |    80,875.58 |
-|        |            |                  |             |              |
+| method |          N | t_construct [ms] | t_scan [ms] | t_total [ms] | mem [kb] |
+|--------|-----------:|-----------------:|------------:|-------------:|---------:|
+| KDTree |      1,024 |             0.22 |        0.94 |         1.16 |          |
+| KDTree |      2,048 |             0.45 |        1.96 |         2.41 |          |
+| KDTree |      4,096 |             0.84 |        3.84 |         4.68 |          |
+| KDTree |      8,192 |             1.73 |        8.09 |         9.82 |          |
+| KDTree |     16,384 |             3.83 |       17.95 |        21.79 |          |
+| KDTree |     32,768 |             9.11 |       41.76 |        50.88 |          |
+| KDTree |     65,536 |            20.39 |       88.60 |       108.99 |          |
+| KDTree |    131,072 |            42.82 |      180.69 |       223.51 |          |
+| KDTree |    262,144 |            79.05 |      404.80 |       483.86 |          |
+| KDTree |    524,288 |           178.63 |    1,392.75 |     1,571.38 |          |
+| KDTree |  1,048,576 |           511.71 |    3,403.33 |     3,915.05 |          |
+| KDTree |  2,097,152 |           973.00 |    7,075.86 |     8,048.86 |          |
+| KDTree |  4,194,304 |         2,212.09 |   15,661.35 |    17,873.44 |          |
+| KDTree |  8,388,608 |         4,756.68 |   33,342.59 |    38,099.27 |          |
+| KDTree | 16,777,216 |        11,126.19 |   69,749.39 |    80,875.58 |          |
+|        |            |                  |             |              |          |
 
 The timings look the same regardless if the input is `np.float32` or `np.float64`.
 
 ## See also
 
-If you a have a good suggestion for anything faster; please let me know.
+You tell me.
