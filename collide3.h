@@ -11,7 +11,7 @@ extern "C" {
 //
 // Implemented using spatial hashing and count sort.
 //
-// Version 1.0.0
+// Version 1.0.1
 // Erik Wernersson 20260901
 
     typedef void (*collide3_cb)(

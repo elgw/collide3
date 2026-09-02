@@ -1,14 +1,13 @@
-# collide3 v 1.0.0
+# collide3 v1.0.1
 
 A collisions detector for points/spheres in $`[-1,1]^3`$ with equal
-radii. Very good performance when the points are evenly
-distributed. Used in
-[chromflock](https://www.github.com/elgw/chromflock).
+radii. Used in [chromflock](https://www.github.com/elgw/chromflock).
 
 The implementation combines spatial hashing/spatial partitioning (each
 bin corresponds to a 3D box) with [counting
 sort](https://en.wikipedia.org/wiki/Counting_sort) to generate a hash
-table with a load factor of 100%.
+table with a load factor of 100%. The performance will only be good
+when the points are reasonably uniformly distributed.
 
 The API does not allow any updates of the point data, since the choice
 of hash table prevents efficient updates, at least in any obvious way.
@@ -114,4 +113,4 @@ The timings look the same regardless if the input is `np.float32` or `np.float64
 
 ## See also
 
-You tell me.
+You tell me. I'd be happy to list your better alternative here.
