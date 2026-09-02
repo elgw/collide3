@@ -29,7 +29,7 @@ collide3_f32(const float * points,
 ## Performance indicators
 
 In this test, the points were randomly distributed in $`[-1,1]^3`$ and
-search radius of $`2*n^{-1/3}`$ was used.
+the collision distance/ search radius was set to $`2n^{-1/3}`$.
 
 For 32-bit floating points:
 
