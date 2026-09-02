@@ -1,61 +1,43 @@
 # collide3 v 1.0.0
 
-A specialized collisions detector which is used in
-[chromflock](https://www.github.com/elgw/chromflock), restricted to
-collisions between spheres (points with radius) within the domain
-$`[-1,1]^3`$
+A collisions detector for points/spheres in $`[-1,1]^3`$ with equal
+radii. Very good performance when the points are evenly
+distributed. Used in
+[chromflock](https://www.github.com/elgw/chromflock).
 
-The implementation uses spatial hashing in combination with count
-sorting and performs best in the case of uniformly distributed points.
+The implementation combines spatial hashing/spatial partitioning (each
+bin corresponds to a 3D box) with [counting
+sort](https://en.wikipedia.org/wiki/Counting_sort) to generate a hash
+table with load a load factor of 100%.
 
-There are two steps involved in the collisions detection:
-
-1. Generate the hash table.
-
-2. Scan all vs all.
-
-Both steps seem reasonably fast; but the choice of hash table does
-prevents any efficient updates and hence there is no API to update the
-hash table when the points have changed.
-
-143 SLOC :)
+The choice of hash table does prevents efficient updates (in any
+obvious way) and hence there is no API to update the hash table when
+the points have changed.
 
 ## API and Usage
 
-See `collide3.h` for the latest version and usage notes.
+See `collide3.h` for the latest version and usage notes. In essence,
+if the interface asks for points and a callback function that is used
+for every collision. See also the file `test/test_collide3.c` for
+examples.
 
 ``` c
-typedef void (*collide3_cb)(
-    uint32_t u, // the index of one point
-    uint32_t v, // the index of the other point
-    double d2, // the squared Euclidean distance between the points
-    void * cb_data); // user pointer
-
-typedef struct {
-    double t_create_ms;
-    double t_scan_ms;
-    uint32_t mem_alloc; // number of allocated bytes
-    uint64_t n_collisions;
-} collide3_info;
-
 int
 collide3_f32(const float * points,
          uint32_t n_point, const float point_radius,
          collide3_info * info,
          collide3_cb cb, void * cb_data);
-
 ```
 
-See the test programs for usage examples.
-
 ## Performance indicators
+
 For ideally distributed points, the performance is close to linear in
 the number of points.
 
-For the test, points were randomly distributed in $`[-1,1]^3`$ and a
-bead/search radius of $`2*n^{-1/3}`$ was chosen.
+In this test, the points were randomly distributed in $`[-1,1]^3`$ and
+search radius of $`2*n^{-1/3}`$ was chosen.
 
-For f32 points:
+For 32-bit floating points:
 
 | method   |          N | t_construct [ms] | t_scan [ms] | t_total [ms] |   mem [kb] |
 |----------|-----------:|-----------------:|------------:|-------------:|-----------:|
@@ -75,7 +57,7 @@ For f32 points:
 | collide3 |  8,388,608 |           336.98 |      109.59 |       446.56 | 140,789.87 |
 | collide3 | 16,777,216 |           973.58 |      246.32 |     1,219.90 | 281,667.26 |
 
-<details><summary>Results for f64 points</summary>
+<details><summary>Results 64-bit floating points</summary>
 
 | method |    N | t_construct [ms] | t_scan [ms] | t_total [ms] |  mem [kb] |
 |  ----  | ---: |     ---:         | ---:        | ---:         | ---:     |
@@ -97,19 +79,20 @@ For f32 points:
 
 </details>
 
-`scipy.spatial.KDTree` offers a lot more functionality and have an
-incomparably larger set of possible uses. And of course the
-performance is much more stable with respect to the spatial
-arrangement of the input points.
+## Comparisons
 
-For the test:
+Not sure what to compare with really since this is quite specialized.
+
+A [k-d tree](https://en.wikipedia.org/wiki/K-d_tree) could of course
+also be used for the same problem (having much broader applicability).
+
+Just to have some reference point I've run `scipy.spatial.KDTree` for
+the same problem as above. For that purpose I used:
+
 ``` Python
 # k is the 3D kissing number
 results = tree.query(X, k=12, p=2, distance_upper_bound=radius)
 ```
-
-The timings look the same regardless if the input is `np.float32` or `np.float64`.
-
 
 | method |          N | t_construct [ms] | t_scan [ms] | t_total [ms] |
 |--------|-----------:|-----------------:|------------:|-------------:|
@@ -130,7 +113,8 @@ The timings look the same regardless if the input is `np.float32` or `np.float64
 | KDTree | 16,777,216 |        11,126.19 |   69,749.39 |    80,875.58 |
 |        |            |                  |             |              |
 
+The timings look the same regardless if the input is `np.float32` or `np.float64`.
 
 ## See also
-- [rebound](https://rebound.hanno-rein.de/collisions/#linetree) which
-  has a few collisions detection methods.
+
+If you a have a good suggestion for anything faster; please let me know.
