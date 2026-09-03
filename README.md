@@ -1,6 +1,9 @@
 # collide3 v1.0.2
 
+<figure>
 <img src="test/screenshot.png" width="100%" />
+ <figcaption>`make ; ./test_collide3_f32 --chimerax; chimerax test.cmm`</figcaption>
+</figure>
 
 A collisions detector for points/spheres in $`[-1,1]^3`$ with equal
 radii. Used in [chromflock](https://www.github.com/elgw/chromflock).
