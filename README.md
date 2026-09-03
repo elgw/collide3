@@ -19,7 +19,7 @@ make ; ./test_collide3_f32 --chimerax; chimerax test.cmm
 ## API and Usage
 
 See `collide3.h` for the latest version and usage notes. In essence:
-if the interface asks for a list of points and a callback function to
+the interface asks for a list of points and a callback function to
 be used on each collision. See also the file `test/test_collide3.c`
 for examples.
 
