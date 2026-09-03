@@ -1,9 +1,6 @@
 # collide3 v1.0.2
 
-<figure>
 <img src="test/screenshot.png" width="100%" />
- <figcaption>`make ; ./test_collide3_f32 --chimerax; chimerax test.cmm`</figcaption>
-</figure>
 
 A collisions detector for points/spheres in $`[-1,1]^3`$ with equal
 radii. Used in [chromflock](https://www.github.com/elgw/chromflock).
@@ -13,6 +10,11 @@ bin corresponds to a 3D box) with [counting
 sort](https://en.wikipedia.org/wiki/Counting_sort) to generate a hash
 table with a load factor of 100%. Good performance can only be
 expected when the points are somewhat uniformly distributed.
+
+The "demo" image above was generated with
+``` shell
+make ; ./test_collide3_f32 --chimerax; chimerax test.cmm
+```
 
 ## API and Usage
 
