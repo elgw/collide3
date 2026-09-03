@@ -1,5 +1,7 @@
 # collide3 v1.0.2
 
+<img src="test/screenshot.png" width="100%" />
+
 A collisions detector for points/spheres in $`[-1,1]^3`$ with equal
 radii. Used in [chromflock](https://www.github.com/elgw/chromflock).
 

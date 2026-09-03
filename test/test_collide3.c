@@ -335,10 +335,70 @@ compare_backends(collide3_backend be1,
                t_be1,
                geqs(t_be1, t_be2),
                t_be2,
-            xf);
+               xf);
 
     }
     return EXIT_SUCCESS;
+}
+
+void mark_red_cb(u32 u, u32 v, __attribute__((unused)) double d2, void * data)
+{
+    u32 * red = (u32*) data;
+    red[u] = 1;
+    red[v] = 1;
+    return;
+}
+
+static int
+gen_chimerax_file(u32 n)
+{
+    fxx * X = random_points(n);
+    if(X == NULL){
+        return EXIT_FAILURE;
+    }
+    fxx radius = 0.2/cbrt(n);
+    u32 * red = calloc(n, sizeof(u32));
+    if(red == NULL) { goto fail1; }
+
+    collide3_info info = {};
+    if(fxx(collide3)(X, n, radius, &info, mark_red_cb, (void*) red)) {
+        goto fail2;
+    }
+
+    double t_total = info.t_create_ms + info.t_scan_ms;
+    printf("Found %lu collisions in %.3f ms (%.0f per second)\n",
+           info.n_collisions,
+           t_total,
+           1000.0/t_total);
+
+    FILE * fid = fopen("test.cmm", "w");
+    if(fid == NULL) {
+        goto fail2;
+    }
+    fprintf(fid, "<marker_set name=\"dump\">\n");
+    for(u32 kk = 0; kk < n; kk++) {
+        double r = 0.5;
+        double g = 0.5;
+        double b = 0.5;
+        if(red[kk]){
+            r = 1; g = 0; b = 0;;
+        }
+        fprintf(fid, "<marker id=\"%u\" x=\"%.3f\" y=\"%.3f\" z=\"%.3f\" r=\"%f\" g=\"%f\" b=\"%f\" radius=\"%f\" />\n",
+                kk, // marker_id
+                X[3*kk+0],X[3*kk+1],X[3*kk+2],
+                r, g, b,
+                radius);
+    }
+    fprintf(fid, "</marker_set>\n");
+    fclose(fid);
+    return EXIT_SUCCESS;
+
+ fail2:
+    free(X);
+ fail1:
+    free(red);
+    return EXIT_FAILURE;
+
 }
 
 int main(int argc, char ** argv)
@@ -365,6 +425,9 @@ int main(int argc, char ** argv)
             compare_backends(be_spatial, be_spatial_lowmem, 100, 10000000, 100);
             compare_backends(be_brute_force, be_spatial, 2, 100, 1);
         }
+        if(strcmp(argv[1], "--chimerax") == 0) {
+            return gen_chimerax_file(50000);
+        }
         printf("Options:\n");
         printf("--timings\n\t"
                "Time the code for some problem sizes.\n\t"
@@ -373,6 +436,8 @@ int main(int argc, char ** argv)
                "Run some validation tests.\n");
         printf("--example1\n\t"
                "Run example1\n");
+        printf("--chimerax\n\t"
+               "generate a .cmm file that can be opened with chimerax");
         return EXIT_FAILURE;
     }
 
