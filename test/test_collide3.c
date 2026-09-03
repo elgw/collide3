@@ -21,6 +21,33 @@ typedef float fxx;
 #define fxx(X) X##_f32
 #endif
 
+static const char* geqs(fxx a, fxx b)
+{
+    if(a < b) {
+        return "<-";
+    }
+    if(a > b) {
+        return "->";
+    }
+    return "==";
+}
+
+static const char *
+backend_s(collide3_backend be)
+{
+    switch(be) {
+    case be_auto:
+        return "auto";
+    case be_spatial:
+        return "spatial";
+    case be_brute_force:
+        return "bf";
+    case be_spatial_lowmem:
+        return "lowmem";
+    }
+    return "???";
+}
+
 static double
 timespec_diff(struct timespec* end, struct timespec * start)
 {
@@ -71,7 +98,7 @@ void cb(u32 u, u32 v, __attribute__ ((unused)) double d2, void * _data)
     return;
 }
 
-void test_vs_brute_force(u32 n)
+void test_vs_brute_force(u32 n, collide3_backend be)
 {
     if(n <= 1){
         return;
@@ -101,8 +128,10 @@ void test_vs_brute_force(u32 n)
     cbdata data;
     data.C = C;
     data.n = n;
+    collide3_info info = {};
+    info.backend = be;
     fxx(collide3)(X, n, radius,
-                  NULL,
+                  &info,
                   cb, &data);
 
     // Check if the contacts were found
@@ -238,7 +267,7 @@ example1(void)
 
 
 static int
-validate(u32 ntest, u32 max_size)
+validate(u32 ntest, u32 max_size, collide3_backend be)
 {
     printf("--- Will perform %u tests comparing to brute force, n < %u\n", ntest, max_size);
     for(u32 kk = 0; kk < ntest; kk++)
@@ -248,7 +277,7 @@ validate(u32 ntest, u32 max_size)
                kk+1, ntest, n);
         fflush(stdout);
 
-        test_vs_brute_force(n);
+        test_vs_brute_force(n, be);
     }
     printf("\n");
     printf("--- done\n\n");
@@ -257,13 +286,15 @@ validate(u32 ntest, u32 max_size)
 
 // Find where brute force isn't the fastest method
 static int
-backends(void)
+compare_backends(collide3_backend be1,
+                 collide3_backend be2,
+                 u32 from, u32 to, u32 step)
 {
-    printf("N,  sh,  bf\n");
-    for(u32 n = 2; n < 100; n++)
+    printf("       N,  %s,  %s\n", backend_s(be1), backend_s(be2));
+    for(u32 n = from; n < to; n += step)
     {
-        double t_sh = 0;
-        double t_bf = 0;
+        double t_be1 = 0;
+        double t_be2 = 0;
         double n_iter = 0;
         double dt = 0;
         struct timespec t0, t1;
@@ -273,33 +304,39 @@ backends(void)
             fxx * X = random_points(n);
             fxx radius = 2.0/cbrt(n);
 
-            collide3_info info = {};
-            if(fxx(collide3)(X, n, radius, &info, NULL, NULL))
-            {
-                return EXIT_FAILURE;
-            }
-            collide3_info info_bf = {};
-            info_bf.backend = be_brute_force;
-            if(fxx(collide3)(X, n, radius, &info_bf, NULL, NULL))
+            collide3_info info1 = {};
+            info1.backend = be1;
+            if(fxx(collide3)(X, n, radius, &info1, NULL, NULL))
             {
                 return EXIT_FAILURE;
             }
 
-            t_sh += info.t_create_ms+info.t_scan_ms;
-            t_bf += info_bf.t_create_ms+info_bf.t_scan_ms;
+            collide3_info info2 = {};
+            info2.backend = be2;
+            if(fxx(collide3)(X, n, radius, &info2, NULL, NULL))
+            {
+                return EXIT_FAILURE;
+            }
+
+            t_be1 += info1.t_create_ms+info1.t_scan_ms;
+            t_be2 += info2.t_create_ms+info2.t_scan_ms;
             n_iter++;
             clock_gettime(CLOCK_REALTIME, &t1);
             dt = timespec_diff(&t1, &t0);
             free(X);
         }
-        t_sh /= n_iter;
-        t_bf /= n_iter;
-        printf("%6u %.2e %.2e ", n, t_sh, t_bf);
-        if(t_sh < t_bf) {
-            printf("sh\n");
-        } else {
-            printf("bf\n");
-        }
+        t_be1 /= n_iter;
+        t_be2 /= n_iter;
+
+        fxx xf = 0;
+        xf = t_be1 < t_be2 ? t_be2/t_be1 : t_be1/t_be2;
+
+        printf("%6u %.2e %s %.2e %.1fX\n", n,
+               t_be1,
+               geqs(t_be1, t_be2),
+               t_be2,
+            xf);
+
     }
     return EXIT_SUCCESS;
 }
@@ -316,13 +353,17 @@ int main(int argc, char ** argv)
             return timings2();
         }
         if( strcmp(argv[1], "--validate") == 0) {
-            return validate(1000000, 1234);
+            validate(1000, 100, be_brute_force);
+            validate(1000, 1234, be_spatial_lowmem);
+            validate(1000000, 1234, be_auto);
+            return EXIT_SUCCESS;
         }
         if(strcmp(argv[1], "--example1") == 0) {
             return example1();
         }
         if(strcmp(argv[1], "--backends") == 0) {
-            return backends();
+            compare_backends(be_spatial, be_spatial_lowmem, 100, 10000000, 100);
+            compare_backends(be_brute_force, be_spatial, 2, 100, 1);
         }
         printf("Options:\n");
         printf("--timings\n\t"
@@ -336,7 +377,7 @@ int main(int argc, char ** argv)
     }
 
     printf("No option provided, running a quick validation\n");
-    validate(1000, 1000);
+    validate(1000, 1000, be_auto);
     printf("\n");
 
     return EXIT_SUCCESS;

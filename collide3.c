@@ -1,8 +1,10 @@
 // A collision detector for points in [-1, 1]^3
-// Version 1.0.2
 // Erik Wernersson 2026
 //
 // Version history:
+//
+// 1.0.3
+// - New: Added a low mem option which does not copy the input points
 //
 // 1.0.2
 //
@@ -272,6 +274,146 @@ collide3_spatial(const fxx * D, const u32 N, const fxx d,
     return EXIT_SUCCESS; // == success
 }
 
+static int
+collide3_spatial_lowmem(const fxx * D, const u32 N, const fxx d,
+                 collide3_info * info,
+                 collide3_cb cb, void * cb_data)
+{
+    struct timespec t0, t1, t2, t3;
+    if(info) {
+        clock_gettime(CLOCK_REALTIME, &t0);
+    }
+
+    if(cb == NULL) {
+        cb = dummy_cb;
+        cb_data = NULL;
+    }
+
+    const fxx d2 = powf(d,2); // store squared distance for future use
+
+    int nDiv = cbrt(N/5);
+    nDiv < 2 ? nDiv = 2 : 0;
+    u32 n_buckets = nDiv*nDiv*nDiv;
+
+    //
+    // Count sort to create the hash table, HT.
+    //
+
+    // We will reference this array under several aliases and offsets,
+    // use paper and pen to figure out!
+    u32 * bucket_list = calloc(n_buckets+3, sizeof(u32));
+    if(bucket_list == NULL) { return EXIT_FAILURE; }
+    if(info) {
+        info->mem_alloc = (n_buckets+3)*sizeof(u32);
+    }
+    u32 * bucket_size = bucket_list + 2;
+
+    // Count how many elements that will fall into each bucket.
+    for(u32 kk = 0; kk<N; kk++) {
+        bucket_size[hash(nDiv, D+3*kk)]++;
+    }
+
+    // Integrate the list -- find the start position of each bucket
+    u32 * bucket_writepos = bucket_list + 1;
+    for(u32 kk = 1; kk<=n_buckets; kk++) {
+        bucket_writepos[kk] = bucket_size[kk-1]+bucket_writepos[kk-1];
+    }
+
+    // Create the actual hash table and insert copies
+    // of all points tagged with their original indices
+    // i.e. sort the points according to their bucket
+    //
+    // Points are copied to avoid cache misses in the later scanning
+    // phase.
+    //
+    // Accumulates the the write positions
+    // so that in the end writepos[kk] is startpos[kk+1]
+    u32 * HT = malloc(N*sizeof(u32));
+    if(info) {
+        info->mem_alloc += N*sizeof(u32);
+    }
+    if(HT == NULL) {
+        free(bucket_list);
+        return EXIT_FAILURE;
+    }
+
+    for(u32 kk = 0; kk<N; kk++) {
+        u32 h = hash(nDiv, D+3*kk);
+        u32 ht_pos = bucket_writepos[h]; // hash table position
+        bucket_writepos[h]++;
+        HT[ht_pos]= kk;
+    }
+
+    u32 * bucket_start = bucket_list;
+
+    if(info) {
+        clock_gettime(CLOCK_REALTIME, &t1);
+        info->t_create_ms = 1000.0 * timespec_diff(&t1, &t0);
+        clock_gettime(CLOCK_REALTIME, &t2);
+    }
+
+    // The loop is over the elements of the hash table,
+    // i.e. not over the order that the elements were given
+    // under the idea that this might reduce cache misses
+    u64 counter = 0;
+    for(u32 kk = 0; kk<N; kk++) {
+        // Figure out which bins might contain a hit
+        fxx deps = d;
+        u32 u = HT[kk];
+        const fxx * uX = D + 3*u;
+        u32 ha_min = hash_coord(nDiv, uX[0] - deps);
+        u32 ha_max = hash_coord(nDiv, uX[0] + deps);
+        u32 hb_min = hash_coord(nDiv, uX[1] - deps);
+        u32 hb_max = hash_coord(nDiv, uX[1] + deps);
+        u32 hc_min = hash_coord(nDiv, uX[2]); // will never scan backward in the last dimension
+        u32 hc_max = hash_coord(nDiv, uX[2] + deps);
+
+        // Loop over the "worst" i.e. most strided dimension first
+        for(u32 cc = hc_min; cc <= hc_max; cc++) {
+            for(u32 bb = hb_min; bb <= hb_max; bb++) {
+
+                // last bucket to visit
+                u32 hash1 =
+                    ha_max +
+                    bb*nDiv +
+                    cc*pow(nDiv,2);
+
+                if(bucket_start[hash1+1]-1 < kk) continue;
+
+                // first bucket to visit
+                u32 hash0 =
+                    ha_min +
+                    bb*nDiv +
+                    cc*pow(nDiv,2);
+
+                // index of first element to compare with
+                u32 ht_start = bucket_start[hash0];
+                // we only compare to later elements in the table
+                ht_start <= kk ? ht_start = kk+1 : 0;
+                // index of last element to compare with
+                u32 ht_end = bucket_start[hash1+1];
+                for(u32 pp = ht_start; pp < ht_end; pp++) {
+                    u32 v = HT[pp];
+                    const fxx * vX = D+3*v;
+                    fxx pd2 = eudist2(uX, vX);
+                    if(pd2 < d2) { // squared distances
+                        cb(u,v, pd2, cb_data);
+                        counter++;
+                    }
+                }
+            }
+        }
+    }
+    free(bucket_list);
+    free(HT);
+    if(info) {
+        clock_gettime(CLOCK_REALTIME, &t3);
+        info->t_scan_ms = 1000.0 * timespec_diff(&t3, &t2);
+        info->n_collisions = counter;
+    }
+    return EXIT_SUCCESS; // == success
+}
+
 // Public API entry point
 int
 fxx(collide3)(const fxx * D, const u32 N, const fxx d,
@@ -280,6 +422,13 @@ fxx(collide3)(const fxx * D, const u32 N, const fxx d,
 {
     if(info && (info->backend == be_brute_force)){
         return collide3_brute_force(D, N, d, info, cb, cb_data);
+    }
+
+    if((info == NULL) || info->backend == be_spatial_lowmem) {
+        if(N < 64){
+            return collide3_brute_force(D, N, d, info, cb, cb_data);
+        }
+        return collide3_spatial_lowmem(D, N, d, info, cb, cb_data);
     }
 
     if((info == NULL) || info->backend == be_auto){

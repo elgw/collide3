@@ -15,7 +15,8 @@ extern "C" {
     typedef enum {
         be_auto = 0,
         be_spatial,
-        be_brute_force
+        be_brute_force,
+        be_spatial_lowmem
     } collide3_backend;
 
     typedef void (*collide3_cb)(
