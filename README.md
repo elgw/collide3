@@ -118,10 +118,13 @@ Results:
 | KDTree |  4,194,304 |         2,212.09 |   15,661.35 |    17,873.44 |          |
 | KDTree |  8,388,608 |         4,756.68 |   33,342.59 |    38,099.27 |          |
 | KDTree | 16,777,216 |        11,126.19 |   69,749.39 |    80,875.58 |          |
-|        |            |                  |             |              |          |
 
-The timings look the same regardless if the input is `np.float32` or `np.float64`.
+Changing the data type of the input array from `np.float64` to
+`np.float32` did not seem alter the timings.
 
-## See also
+## Relevant links / See also
 
-You tell me. I'd be happy to list your better alternative here.
+I'd be happy to list your alternative here.
+
+- The visualization above was made with [UCSF ChimeraX](https://www.cgl.ucsf.edu/chimerax/).
+- [`scipy.spatial.KDTree`](https://docs.scipy.org/doc/scipy/reference/spatial.html)
