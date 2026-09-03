@@ -1,3 +1,20 @@
+// A collision detector for points in [-1, 1]^3
+// Version 1.0.2
+// Erik Wernersson 2026
+//
+// Version history:
+//
+// 1.0.2
+//
+//- Improvement: Brute force scanning is faster for small
+//  problems. The method switches brute force scanning when fewer than
+//  64 points are provided.
+//
+// 1.0.1
+//
+// - Fix: The callback returns the distance between the points (not
+//   the detection distance).
+
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -61,17 +78,54 @@ hash(const u32 nDiv, const fxx * X)
 // passed.
 static void
 dummy_cb(__attribute__((unused)) u32 u,
-              __attribute__((unused)) u32 v,
-              __attribute__((unused)) double d2,
-              __attribute__((unused)) void * data)
+         __attribute__((unused)) u32 v,
+         __attribute__((unused)) double d2,
+         __attribute__((unused)) void * data)
 {
     return;
 }
 
-int
-fxx(collide3)(const fxx * D, const u32 N, const fxx d,
-             collide3_info * info,
-             collide3_cb cb, void * cb_data)
+static int
+collide3_brute_force(const fxx * D, const u32 N, const fxx d,
+                     collide3_info * info,
+                     collide3_cb cb, void * cb_data)
+{
+    if(cb == NULL) {
+        cb = dummy_cb;
+        cb_data = NULL;
+    }
+
+    double d2 = d*d;
+    struct timespec t0, t1;
+    if(info) {
+        clock_gettime(CLOCK_REALTIME, &t0);
+    }
+
+    u64 counter = 0;
+    for(u32 u = 0; u < N; u++) {
+        for(u32 v = u+1; v < N; v++) {
+            fxx pd2 = eudist2(D+3*u, D+3*v);
+            if(pd2 < d2) { // squared distances
+                cb(u, v, pd2, cb_data);
+                counter++;
+            }
+        }
+    }
+
+    if(info) {
+        clock_gettime(CLOCK_REALTIME, &t1);
+        info->t_scan_ms = 1000.0 * timespec_diff(&t1, &t0);
+        info->n_collisions = counter;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+
+static int
+collide3_spatial(const fxx * D, const u32 N, const fxx d,
+                 collide3_info * info,
+                 collide3_cb cb, void * cb_data)
 {
     struct timespec t0, t1, t2, t3;
     if(info) {
@@ -216,4 +270,23 @@ fxx(collide3)(const fxx * D, const u32 N, const fxx d,
         info->n_collisions = counter;
     }
     return EXIT_SUCCESS; // == success
+}
+
+// Public API entry point
+int
+fxx(collide3)(const fxx * D, const u32 N, const fxx d,
+              collide3_info * info,
+              collide3_cb cb, void * cb_data)
+{
+    if(info && (info->backend == be_brute_force)){
+        return collide3_brute_force(D, N, d, info, cb, cb_data);
+    }
+
+    if((info == NULL) || info->backend == be_auto){
+        if(N < 64){
+            return collide3_brute_force(D, N, d, info, cb, cb_data);
+        }
+    }
+
+    return collide3_spatial(D, N, d, info, cb, cb_data);
 }

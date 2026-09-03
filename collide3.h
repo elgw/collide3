@@ -8,11 +8,15 @@ extern "C" {
 #include <stdlib.h>
 
 // A collision detector for points in [-1, 1]^3
-//
-// Implemented using spatial hashing and count sort.
-//
-// Version 1.0.1
-// Erik Wernersson 20260901
+// Version 1.0.2
+// Erik Wernersson 2026
+
+
+    typedef enum {
+        be_auto = 0,
+        be_spatial,
+        be_brute_force
+    } collide3_backend;
 
     typedef void (*collide3_cb)(
         uint32_t u, // the index of one point
@@ -25,10 +29,12 @@ extern "C" {
         double t_scan_ms;
         uint32_t mem_alloc; // number of allocated bytes
         uint64_t n_collisions;
+        collide3_backend backend;
     } collide3_info;
 
 
-// Detect collisions among the 3D points, i.e., where ||u-v|| < radius
+// Detect collisions among the 3D points, i.e., where ||u-v|| <
+// collision_distance
 //
 // Arguments:
 // - points: [[x, y, z], [x, y, z], ...].
@@ -46,11 +52,10 @@ extern "C" {
 // the bounds. Points outside of the bounds will cause INEFFICIENT
 // queries.
 
-
     int
     collide3_f32(const float * points,
                  uint32_t n_point,
-                 float point_radius,
+                 float collision_distance,
                  collide3_info * info,
                  collide3_cb cb,
                  void * cb_data);

@@ -1,4 +1,4 @@
-# collide3 v1.0.1
+# collide3 v1.0.2
 
 A collisions detector for points/spheres in $`[-1,1]^3`$ with equal
 radii. Used in [chromflock](https://www.github.com/elgw/chromflock).
@@ -6,30 +6,32 @@ radii. Used in [chromflock](https://www.github.com/elgw/chromflock).
 The implementation combines spatial hashing/spatial partitioning (each
 bin corresponds to a 3D box) with [counting
 sort](https://en.wikipedia.org/wiki/Counting_sort) to generate a hash
-table with a load factor of 100%. The performance will only be good
-when the points are reasonably uniformly distributed.
-
-The API does not allow any updates of the point data, since the choice
-of hash table prevents efficient updates, at least in any obvious way.
+table with a load factor of 100%. Good performance can only be
+expected when the points are somewhat uniformly distributed.
 
 ## API and Usage
 
-See `collide3.h` for the latest version and usage notes. In essence,
-if the interface asks for points and a callback function to be used on
-each collision. See also the file `test/test_collide3.c` for examples.
+See `collide3.h` for the latest version and usage notes. In essence:
+if the interface asks for a list of points and a callback function to
+be used on each collision. See also the file `test/test_collide3.c`
+for examples.
 
 ``` c
 int
 collide3_f32(const float * points,
-         uint32_t n_point, const float point_radius,
+         uint32_t n_point,
+         float collision_distance,
          collide3_info * info,
          collide3_cb cb, void * cb_data);
 ```
 
 ## Performance indicators
 
-In this test, the points were randomly distributed in $`[-1,1]^3`$ and
-the collision distance/ search radius was set to $`2n^{-1/3}`$.
+This tests uses close-to ideal inputs, please perform your own
+benchmarks if you plan to use this library.
+
+Points were uniformly random distributed in $`[-1,1]^3`$ and the
+collision distance was set to $`2n^{-1/3}`$ ($`2r`$ in terms of beads).
 
 For 32-bit floating points:
 
@@ -89,6 +91,8 @@ tree = KDTree(X)
 # k is the 3D kissing number
 results = tree.query(X, k=12, p=2, distance_upper_bound=radius)
 ```
+
+Results:
 
 | method |          N | t_construct [ms] | t_scan [ms] | t_total [ms] | mem [kb] |
 |--------|-----------:|-----------------:|------------:|-------------:|---------:|

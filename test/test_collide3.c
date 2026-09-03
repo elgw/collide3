@@ -3,7 +3,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include <math.h>
+#include <time.h>
 
 #include "../collide3.h"
 
@@ -19,6 +21,14 @@ typedef float fxx;
 #define fxx(X) X##_f32
 #endif
 
+static double
+timespec_diff(struct timespec* end, struct timespec * start)
+{
+    double elapsed = (end->tv_sec - start->tv_sec);
+    elapsed += (end->tv_nsec - start->tv_nsec) / 1000000000.0;
+    return elapsed;
+}
+
 
 static fxx inbox(void)
 {
@@ -27,7 +37,9 @@ static fxx inbox(void)
 
 static fxx eudist2(const fxx * X, const fxx * Y)
 {
-    return pow(X[0]-Y[0], 2) + pow(X[1]-Y[1], 2) + pow(X[2]-Y[2], 2);
+    return pow(X[0]-Y[0], 2)
+        +  pow(X[1]-Y[1], 2)
+        +  pow(X[2]-Y[2], 2);
 }
 
 typedef struct {
@@ -61,7 +73,7 @@ void cb(u32 u, u32 v, __attribute__ ((unused)) double d2, void * _data)
 
 void test_vs_brute_force(u32 n)
 {
-    if(n < 1){
+    if(n <= 1){
         return;
     }
     fxx radius = 2.0/cbrt(n);
@@ -133,13 +145,14 @@ void test_vs_brute_force(u32 n)
     free(X);
 }
 
-void timings(void)
+static int
+timings(void)
 {
     printf("--- Will perform some timing experiments\n");
     printf("\n");
     printf("| method |    N | t_construct [ms] | t_scan [ms] | t_total [ms] |  mem [kb] |\n");
     printf("|  ----  | ---: |     ---:         | ---:        | ---:         | ---:     |\n");
-    for(i32 n = 1024; n < 2*10000000; n*=2)
+    for(i32 n = 16; n < 16*10000000; n*=2)
     {
         fxx radius = 2.0/cbrt(n);
         fxx ntries = 0;
@@ -161,7 +174,7 @@ void timings(void)
             mem_b = info.mem_alloc;
             ntries++;
         }
-        printf("| collide3 | %'u | %'.2f |  %'.2f | %'.2f | %'.2f |\n",
+        printf("| collide3 | %'u | %'.3f | %'.3f | %'.3f | %'.0f |\n",
                n,
                t_construct / ntries,
                t_scan / ntries,
@@ -170,9 +183,37 @@ void timings(void)
     }
     printf("\n");
     printf("--done\n\n");
+    return EXIT_SUCCESS;
 }
 
-static void
+static int
+timings2(void)
+{
+    printf("N, t_ms\n");
+    for(i32 n = 16; n < 16*10000000; n*=1.1)
+    {
+        fxx radius = 2.0/cbrt(n);
+        fxx ntries = 0;
+        double t_total = 0;
+        while(t_total < 100.0)
+        {
+            fxx * X = random_points(n);
+            collide3_info info = {};
+            fxx(collide3)(X, n, radius,
+                          &info,
+                          NULL, NULL);
+            free(X);
+            t_total += info.t_create_ms + info.t_scan_ms;
+            ntries++;
+        }
+        printf("%u, %e\n", n, t_total / ntries);
+        fflush(stdout);
+    }
+    return EXIT_SUCCESS;
+}
+
+
+static int
 example1(void)
 {
     printf("-- Example1: just counting the number of collisions\n");
@@ -192,10 +233,11 @@ example1(void)
                info.n_collisions, radius);
     }
     printf("---done\n\n");
+    return EXIT_SUCCESS;
 }
 
 
-static void
+static int
 validate(u32 ntest, u32 max_size)
 {
     printf("--- Will perform %u tests comparing to brute force, n < %u\n", ntest, max_size);
@@ -210,20 +252,91 @@ validate(u32 ntest, u32 max_size)
     }
     printf("\n");
     printf("--- done\n\n");
-    return;
+    return EXIT_SUCCESS;
+}
+
+// Find where brute force isn't the fastest method
+static int
+backends(void)
+{
+    printf("N,  sh,  bf\n");
+    for(u32 n = 2; n < 100; n++)
+    {
+        double t_sh = 0;
+        double t_bf = 0;
+        double n_iter = 0;
+        double dt = 0;
+        struct timespec t0, t1;
+        clock_gettime(CLOCK_REALTIME, &t0);
+
+        while(dt < 0.1){
+            fxx * X = random_points(n);
+            fxx radius = 2.0/cbrt(n);
+
+            collide3_info info = {};
+            if(fxx(collide3)(X, n, radius, &info, NULL, NULL))
+            {
+                return EXIT_FAILURE;
+            }
+            collide3_info info_bf = {};
+            info_bf.backend = be_brute_force;
+            if(fxx(collide3)(X, n, radius, &info_bf, NULL, NULL))
+            {
+                return EXIT_FAILURE;
+            }
+
+            t_sh += info.t_create_ms+info.t_scan_ms;
+            t_bf += info_bf.t_create_ms+info_bf.t_scan_ms;
+            n_iter++;
+            clock_gettime(CLOCK_REALTIME, &t1);
+            dt = timespec_diff(&t1, &t0);
+            free(X);
+        }
+        t_sh /= n_iter;
+        t_bf /= n_iter;
+        printf("%6u %.2e %.2e ", n, t_sh, t_bf);
+        if(t_sh < t_bf) {
+            printf("sh\n");
+        } else {
+            printf("bf\n");
+        }
+    }
+    return EXIT_SUCCESS;
 }
 
 int main(int argc, char ** argv)
 {
     setlocale(LC_NUMERIC, "");
-    example1();
 
+    if(argc > 1) {
+        if( strcmp(argv[1], "--timings") == 0) {
+            return timings();
+        }
+        if( strcmp(argv[1], "--timings2") == 0) {
+            return timings2();
+        }
+        if( strcmp(argv[1], "--validate") == 0) {
+            return validate(1000000, 1234);
+        }
+        if(strcmp(argv[1], "--example1") == 0) {
+            return example1();
+        }
+        if(strcmp(argv[1], "--backends") == 0) {
+            return backends();
+        }
+        printf("Options:\n");
+        printf("--timings\n\t"
+               "Time the code for some problem sizes.\n\t"
+               "Will be displayed as a markdown table\n");
+        printf("--validate\n\t"
+               "Run some validation tests.\n");
+        printf("--example1\n\t"
+               "Run example1\n");
+        return EXIT_FAILURE;
+    }
+
+    printf("No option provided, running a quick validation\n");
     validate(1000, 1000);
-
-    timings();
-
-    validate(1000000, 1234);
-
     printf("\n");
 
     return EXIT_SUCCESS;
