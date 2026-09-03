@@ -361,7 +361,7 @@ gen_chimerax_file(u32 n)
     if(red == NULL) { goto fail1; }
 
     collide3_info info = {};
-    if(fxx(collide3)(X, n, radius, &info, mark_red_cb, (void*) red)) {
+    if(fxx(collide3)(X, n, 2.0*radius, &info, mark_red_cb, (void*) red)) {
         goto fail2;
     }
 
@@ -426,7 +426,7 @@ int main(int argc, char ** argv)
             compare_backends(be_brute_force, be_spatial, 2, 100, 1);
         }
         if(strcmp(argv[1], "--chimerax") == 0) {
-            return gen_chimerax_file(50000);
+            return gen_chimerax_file(10000);
         }
         printf("Options:\n");
         printf("--timings\n\t"
