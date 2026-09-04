@@ -101,7 +101,7 @@ also be used for the same problem (having much broader applicability).
 
 Just to have some reference point I've run
 [`scipy.spatial.KDTree`](https://docs.scipy.org/doc/scipy/reference/spatial.html)
-with similar input as above (see `test/test_scipy_spatial_KDTree.py`),
+with similar input as above (see `test/scipy_spatial_KDTree_test.py`),
 which boils down to:
 
 ``` Python
