@@ -118,14 +118,16 @@ collide3_brute_force(const fxx * D, const u32 N, const fxx d,
         clock_gettime(CLOCK_REALTIME, &t1);
         info->t_scan_ms = 1000.0 * timespec_diff(&t1, &t0);
         info->n_collisions = counter;
+        info->t_total_ms = info->t_scan_ms;
     }
 
     return EXIT_SUCCESS;
 }
 
 
+
 static int
-collide3_spatial(const fxx * D, const u32 N, const fxx d,
+collide3_spatial(const fxx * restrict D, const u32 N, const fxx d,
                  collide3_info * info,
                  collide3_cb cb, void * cb_data)
 {
@@ -152,9 +154,10 @@ collide3_spatial(const fxx * D, const u32 N, const fxx d,
     // cbrt(N/6) -> 1,322.54 s
     // cbrt(N/7) -> 1,507.23 s
     // cbct(N/8) -> 1,810.87 s
-    int nDiv = cbrt(N/5);
-    nDiv < 2 ? nDiv = 2 : 0;
-    u32 n_buckets = nDiv*nDiv*nDiv;
+    int _nDiv = cbrt(N/5);
+    _nDiv < 2 ? _nDiv = 2 : 0;
+    const u32 nDiv = _nDiv;
+    const u32 n_buckets = nDiv*nDiv*nDiv;
 
     //
     // Count sort to create the hash table, HT.
@@ -255,7 +258,7 @@ collide3_spatial(const fxx * D, const u32 N, const fxx d,
                 // index of last element to compare with
                 u32 ht_end = bucket_start[hash1+1];
                 for(u32 pp = ht_start; pp < ht_end; pp++) {
-                    fxx pd2 = eudist2(HT[pp].X, HT[kk].X);
+                    const fxx pd2 = eudist2(HT[pp].X, HT[kk].X);
                     if(pd2 < d2) { // squared distances
                         cb(HT[pp].idx, HT[kk].idx, pd2, cb_data);
                         counter++;
@@ -269,6 +272,7 @@ collide3_spatial(const fxx * D, const u32 N, const fxx d,
     if(info) {
         clock_gettime(CLOCK_REALTIME, &t3);
         info->t_scan_ms = 1000.0 * timespec_diff(&t3, &t2);
+        info->t_total_ms = 1000.0 * timespec_diff(&t3, &t0);
         info->n_collisions = counter;
     }
     return EXIT_SUCCESS; // == success
@@ -410,6 +414,7 @@ collide3_spatial_lowmem(const fxx * D, const u32 N, const fxx d,
         clock_gettime(CLOCK_REALTIME, &t3);
         info->t_scan_ms = 1000.0 * timespec_diff(&t3, &t2);
         info->n_collisions = counter;
+        info->t_total_ms = 1000.0 * timespec_diff(&t3, &t0);
     }
     return EXIT_SUCCESS; // == success
 }

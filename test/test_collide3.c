@@ -193,20 +193,24 @@ void test_vs_brute_force(u32 n, collide3_backend be)
 static int
 markdown_timings(config * conf)
 {
+    u32 min_tries = 3;
+    u32 min_time = 100;
     printf("--- Will perform some timing experiments\n");
     printf("--- backend: %s\n", backend_s(conf->be1));
+    printf("--- for each n, at least %u iterations are performed\n", min_tries);
+    printf("--- and at least %u ms are used\n", min_time);
     printf("\n");
     printf("| method |    N | t_construct [ms] | t_scan [ms] | t_total [ms] |  mem [kb] |\n");
     printf("|  ----  | ---: |     ---:         | ---:        | ---:         | ---:     |\n");
     for(i32 n = 16; n < 16*10000000; n*=2)
     {
         fxx radius = 2.0/cbrt(n);
-        fxx ntries = 0;
+        double ntries = 0;
         double t_total = 0;
         double t_scan = 0;
         double t_construct = 0;
         double mem_b = 0;
-        while(t_total < 1000.0)
+        while((ntries < min_tries) || (t_total < min_time))
         {
             fxx * X = random_points(n);
             collide3_info info = {};
@@ -215,10 +219,10 @@ markdown_timings(config * conf)
                           &info,
                           NULL, NULL);
             free(X);
-            t_total += info.t_create_ms + info.t_scan_ms;
+            t_total += info.t_total_ms;
             t_construct += info.t_create_ms;
             t_scan += info.t_scan_ms;
-            mem_b = info.mem_alloc;
+            mem_b = info.mem_alloc; // same each time
             ntries++;
         }
         printf("| collide3 | %'u | %'.3f | %'.3f | %'.3f | %'.0f |\n",

@@ -19,7 +19,6 @@ endif
 ifeq ($(DEBUG),1)
 CFLAGS+=-g3
 else
-
 CFLAGS+=-O3 -DNDEBUG
 CFLAGS+=-fno-math-errno # Fine since we don't catch them in any case
 CFLAGS+=-ffinite-math-only # Yes, points should be in the domain

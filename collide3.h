@@ -11,7 +11,6 @@ extern "C" {
 // Version 1.0.2
 // Erik Wernersson 2026
 
-
     typedef enum {
         be_auto = 0,
         be_spatial,
@@ -28,6 +27,7 @@ extern "C" {
     typedef struct {
         double t_create_ms;
         double t_scan_ms;
+        double t_total_ms;
         uint32_t mem_alloc; // number of allocated bytes
         uint64_t n_collisions;
         collide3_backend backend;
