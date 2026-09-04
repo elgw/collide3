@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <getopt.h>
 #include <locale.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -21,16 +22,18 @@ typedef float fxx;
 #define fxx(X) X##_f32
 #endif
 
-static const char* geqs(fxx a, fxx b)
-{
-    if(a < b) {
-        return "<-";
-    }
-    if(a > b) {
-        return "->";
-    }
-    return "==";
-}
+typedef struct {
+    collide3_backend be1;
+    collide3_backend be2;
+    u32 n; // number of points, interpretation depends on method
+    int markdown_timings;
+    int csv_timings;
+    int chimera;
+    int validate;
+    int verbose;
+    int timeout;
+} config;
+
 
 static const char *
 backend_s(collide3_backend be)
@@ -48,20 +51,33 @@ backend_s(collide3_backend be)
     return "???";
 }
 
-static double
-timespec_diff(struct timespec* end, struct timespec * start)
+collide3_backend parse_backend(const char * str)
 {
-    double elapsed = (end->tv_sec - start->tv_sec);
-    elapsed += (end->tv_nsec - start->tv_nsec) / 1000000000.0;
-    return elapsed;
+    if(strcmp(str, "lowmem") == 0)
+    {
+        return be_spatial_lowmem;
+    }
+    if(strcmp(str, "spatial") == 0)
+    {
+        return be_spatial;
+    }
+    if(strcmp(str, "bf") == 0)
+    {
+        return be_brute_force;
+    }
+
+    printf("Could not parse '%s' as a backend\n", str);
+    return be_auto;
 }
 
 
+// Return a number in [-1, 1]
 static fxx inbox(void)
 {
     return 2*(0.5 -((fxx) rand() / (fxx) RAND_MAX));
 }
 
+// ||X-Y||^2
 static fxx eudist2(const fxx * X, const fxx * Y)
 {
     return pow(X[0]-Y[0], 2)
@@ -175,9 +191,10 @@ void test_vs_brute_force(u32 n, collide3_backend be)
 }
 
 static int
-timings(void)
+markdown_timings(config * conf)
 {
     printf("--- Will perform some timing experiments\n");
+    printf("--- backend: %s\n", backend_s(conf->be1));
     printf("\n");
     printf("| method |    N | t_construct [ms] | t_scan [ms] | t_total [ms] |  mem [kb] |\n");
     printf("|  ----  | ---: |     ---:         | ---:        | ---:         | ---:     |\n");
@@ -193,6 +210,7 @@ timings(void)
         {
             fxx * X = random_points(n);
             collide3_info info = {};
+            info.backend = conf->be1;
             fxx(collide3)(X, n, radius,
                           &info,
                           NULL, NULL);
@@ -216,18 +234,20 @@ timings(void)
 }
 
 static int
-timings2(void)
+timings_csv(config * conf)
 {
+    double accumulation_time_ms = 100;
     printf("N, t_ms\n");
     for(i32 n = 16; n < 16*10000000; n*=1.1)
     {
         fxx radius = 2.0/cbrt(n);
         fxx ntries = 0;
         double t_total = 0;
-        while(t_total < 100.0)
+        while(t_total < accumulation_time_ms)
         {
             fxx * X = random_points(n);
             collide3_info info = {};
+            info.backend = conf->be1;
             fxx(collide3)(X, n, radius,
                           &info,
                           NULL, NULL);
@@ -237,6 +257,9 @@ timings2(void)
         }
         printf("%u, %e\n", n, t_total / ntries);
         fflush(stdout);
+        if(t_total > conf->timeout) {
+            break;
+        }
     }
     return EXIT_SUCCESS;
 }
@@ -267,9 +290,13 @@ example1(void)
 
 
 static int
-validate(u32 ntest, u32 max_size, collide3_backend be)
+validate(config * conf)
 {
+    u32 ntest = 10000;
+    u32 max_size = 1234;
+
     printf("--- Will perform %u tests comparing to brute force, n < %u\n", ntest, max_size);
+    printf("--- Backend to be tested: %s\n", backend_s(conf->be1));
     for(u32 kk = 0; kk < ntest; kk++)
     {
         u32 n = rand() % max_size;
@@ -277,67 +304,10 @@ validate(u32 ntest, u32 max_size, collide3_backend be)
                kk+1, ntest, n);
         fflush(stdout);
 
-        test_vs_brute_force(n, be);
+        test_vs_brute_force(n, conf->be1);
     }
     printf("\n");
     printf("--- done\n\n");
-    return EXIT_SUCCESS;
-}
-
-// Find where brute force isn't the fastest method
-static int
-compare_backends(collide3_backend be1,
-                 collide3_backend be2,
-                 u32 from, u32 to, u32 step)
-{
-    printf("       N,  %s,  %s\n", backend_s(be1), backend_s(be2));
-    for(u32 n = from; n < to; n += step)
-    {
-        double t_be1 = 0;
-        double t_be2 = 0;
-        double n_iter = 0;
-        double dt = 0;
-        struct timespec t0, t1;
-        clock_gettime(CLOCK_REALTIME, &t0);
-
-        while(dt < 0.1){
-            fxx * X = random_points(n);
-            fxx radius = 2.0/cbrt(n);
-
-            collide3_info info1 = {};
-            info1.backend = be1;
-            if(fxx(collide3)(X, n, radius, &info1, NULL, NULL))
-            {
-                return EXIT_FAILURE;
-            }
-
-            collide3_info info2 = {};
-            info2.backend = be2;
-            if(fxx(collide3)(X, n, radius, &info2, NULL, NULL))
-            {
-                return EXIT_FAILURE;
-            }
-
-            t_be1 += info1.t_create_ms+info1.t_scan_ms;
-            t_be2 += info2.t_create_ms+info2.t_scan_ms;
-            n_iter++;
-            clock_gettime(CLOCK_REALTIME, &t1);
-            dt = timespec_diff(&t1, &t0);
-            free(X);
-        }
-        t_be1 /= n_iter;
-        t_be2 /= n_iter;
-
-        fxx xf = 0;
-        xf = t_be1 < t_be2 ? t_be2/t_be1 : t_be1/t_be2;
-
-        printf("%6u %.2e %s %.2e %.1fX\n", n,
-               t_be1,
-               geqs(t_be1, t_be2),
-               t_be2,
-               xf);
-
-    }
     return EXIT_SUCCESS;
 }
 
@@ -350,13 +320,16 @@ void mark_red_cb(u32 u, u32 v, __attribute__((unused)) double d2, void * data)
 }
 
 static int
-gen_chimerax_file(u32 n)
+gen_chimerax_file(config * conf)
 {
+    u32 n = conf->n;
+    printf("Generating %u points\n", n);
     fxx * X = random_points(n);
     if(X == NULL){
         return EXIT_FAILURE;
     }
     fxx radius = 0.2/cbrt(n);
+    printf("Bead radius = %.2e\n", radius);
     u32 * red = calloc(n, sizeof(u32));
     if(red == NULL) { goto fail1; }
 
@@ -366,10 +339,15 @@ gen_chimerax_file(u32 n)
     }
 
     double t_total = info.t_create_ms + info.t_scan_ms;
-    printf("Found %lu collisions in %.3f ms (%.0f per second)\n",
+    printf("Found %lu collisions in %.3f ms",
            info.n_collisions,
-           t_total,
-           1000.0/t_total);
+           t_total);
+    if(info.n_collisions > 0){
+        printf(" (%.0f per second)\n", 1000.0 / t_total);
+    } else {
+        printf("\n");
+    }
+
 
     FILE * fid = fopen("test.cmm", "w");
     if(fid == NULL) {
@@ -401,49 +379,125 @@ gen_chimerax_file(u32 n)
 
 }
 
+
+static void usage(void){
+    printf("Options:\n");
+    printf("--backend str\n\t"
+           "select backend. Valid options:\n\t"
+           "- auto    -- which is the default\n\t"
+           "- spatial -- spatial hashing\n\t"
+           "- lowmem  -- low mem version of spatial hashing\n\t"
+           "- bf      -- brute force\n");
+    printf("--npoint n\n\t"
+           "set number of points to use\n");
+    printf("--validate\n\t"
+           "Run some validation tests.\n");
+    printf("--chimerax\n\t"
+           "generate a .cmm file that can be opened with chimerax\n");
+    printf("--timings\n\t"
+           "perform some timings, output as csv to stdout\n");
+    printf("--timeout ms\n\t"
+           "abort the timings when more than this time has passed for\n\t"
+           "a single measurement\n");
+    printf("--verbose v\n\t"
+           "set the verbosity level\n");
+    printf("--help\n\t"
+           "show this message\n");
+    return;
+}
+
+config * parse_command_line(int argc, char ** argv)
+{
+    struct option longopts[] = {
+        { "backend",  required_argument, NULL, '1' },
+        { "markdown",  no_argument,       NULL, 'm' },
+        { "validate", no_argument,        NULL, 'v' },
+        { "chimera",  no_argument,        NULL, 'c' },
+        { "timings",  no_argument,       NULL, 't' },
+        { "npoint",   required_argument, NULL, 'n' },
+        { "verbose",  required_argument, NULL, 'V' },
+        { "help",     no_argument,       NULL, 'h' },
+        {"timeout",   required_argument, NULL, 'T' },
+        { NULL,           0,                 NULL,   0   }
+    };
+
+    config * conf = calloc(1, sizeof(config));
+    conf->verbose = 1;
+    conf->timeout = 1000;
+    conf->n = 10000;
+
+    char ch;
+    while((ch = getopt_long(argc, argv,
+                            "1:2:mvc",
+                            longopts, NULL)) != -1) {
+        switch(ch) {
+        case '1':
+            conf->be1 = parse_backend(optarg);
+            break;
+        case '2':
+            conf->be1 = parse_backend(optarg);
+            break;
+        case 'm':
+            conf->markdown_timings = 1;
+            break;
+        case 'v':
+            conf->validate = 1;
+            break;
+        case 'c':
+            conf->chimera = 1;
+            break;
+        case 'n':
+            conf->n = atol(optarg);
+            break;
+        case 't':
+            conf->csv_timings = 1;
+            break;
+        case 'h':
+            usage();
+            break;
+        case 'V':
+            conf->verbose = atoi(optarg);
+            break;
+        case 'T':
+            conf->timeout = atol(optarg);
+            break;
+        }
+    }
+    return conf;
+}
+
 int main(int argc, char ** argv)
 {
     setlocale(LC_NUMERIC, "");
 
-    if(argc > 1) {
-        if( strcmp(argv[1], "--timings") == 0) {
-            return timings();
-        }
-        if( strcmp(argv[1], "--timings2") == 0) {
-            return timings2();
-        }
-        if( strcmp(argv[1], "--validate") == 0) {
-            validate(1000, 100, be_brute_force);
-            validate(1000, 1234, be_spatial_lowmem);
-            validate(1000000, 1234, be_auto);
-            return EXIT_SUCCESS;
-        }
-        if(strcmp(argv[1], "--example1") == 0) {
-            return example1();
-        }
-        if(strcmp(argv[1], "--backends") == 0) {
-            compare_backends(be_spatial, be_spatial_lowmem, 100, 10000000, 100);
-            compare_backends(be_brute_force, be_spatial, 2, 100, 1);
-        }
-        if(strcmp(argv[1], "--chimerax") == 0) {
-            return gen_chimerax_file(10000);
-        }
-        printf("Options:\n");
-        printf("--timings\n\t"
-               "Time the code for some problem sizes.\n\t"
-               "Will be displayed as a markdown table\n");
-        printf("--validate\n\t"
-               "Run some validation tests.\n");
-        printf("--example1\n\t"
-               "Run example1\n");
-        printf("--chimerax\n\t"
-               "generate a .cmm file that can be opened with chimerax");
-        return EXIT_FAILURE;
+    if(argc == 1){
+        return example1();
     }
 
-    printf("No option provided, running a quick validation\n");
-    validate(1000, 1000, be_auto);
-    printf("\n");
+    config * conf = parse_command_line(argc, argv);
 
+    if(conf->verbose > 1){
+        printf("backend: %s\n", backend_s(conf->be1));
+    }
+
+    if(conf->markdown_timings){
+        markdown_timings(conf);
+    }
+
+    if(conf->validate){
+        validate(conf);
+    }
+
+    if(conf->csv_timings)
+    {
+        timings_csv(conf);
+    }
+
+    if(conf->chimera){
+        return gen_chimerax_file(conf);
+    }
+
+
+    free(conf);
     return EXIT_SUCCESS;
 }

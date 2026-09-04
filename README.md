@@ -13,7 +13,7 @@ expected when the points are somewhat uniformly distributed.
 
 The "demo" image above was generated with
 ``` shell
-make ; ./test_collide3_f32 --chimerax; chimerax test.cmm
+make ; ./test_collide3_f32 --chimera --npoint 10000; chimerax test.cmm
 ```
 
 ## API and Usage
@@ -80,6 +80,17 @@ For 32-bit floating points:
 | collide3 |  8,388,608 |           523.94 |      117.17 |       641.10 | 275,007.60 |
 | collide3 | 16,777,216 |         1,539.67 |      219.36 |     1,759.03 | 550,102.72 |
 
+
+The `collide3_` function use the brute force method (`be_brute_force`)
+for small problems and switches to `be_spatial` when there are 100
+points or more when the backend is set to `be_auto`.
+
+That is based on the following timings
+
+<img src="test/timings.png" width="100%" />
+
+Of course what suits best depends on the machine and problem at hand.
+
 </details>
 
 ## Comparisons
@@ -122,9 +133,12 @@ Results:
 Changing the data type of the input array from `np.float64` to
 `np.float32` did not seem alter the timings.
 
-## Relevant links / See also
+## Notes/ Relevant links / See also
 
-I'd be happy to list your alternative here.
+- The tests were performed with an AMD Ryzen 7 3700X 8-Core Processor using GCC 13.3.0.
 
 - The visualization above was made with [UCSF ChimeraX](https://www.cgl.ucsf.edu/chimerax/).
+
 - [`scipy.spatial.KDTree`](https://docs.scipy.org/doc/scipy/reference/spatial.html)
+
+- I'd be happy to list your alternative here.

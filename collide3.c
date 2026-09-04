@@ -432,7 +432,7 @@ fxx(collide3)(const fxx * D, const u32 N, const fxx d,
     }
 
     if((info == NULL) || info->backend == be_auto){
-        if(N < 64){
+        if(N < 100){
             return collide3_brute_force(D, N, d, info, cb, cb_data);
         }
     }
