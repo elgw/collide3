@@ -38,8 +38,9 @@ for a in [0, 1]:
 
 ax[0].set_ylabel('total time [ms]')
 ax[1].set_ylabel('time per point [ns]')
-ax[1].set_ylim([50, 500])
+ax[1].set_ylim([50, 200])
 if not os.path.exists('test/timings.png'):
+    print(f'Writing to test/timings.png')
     plt.savefig('test/timings.png')
 
 plt.show()

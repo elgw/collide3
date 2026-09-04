@@ -34,6 +34,16 @@ typedef struct {
     int timeout;
 } config;
 
+// Return a beads radius so that
+// V_beads / V_domain = Vq
+// V_domain = 2^3 = 8
+// V_beads = n * (4/3)*pi*r^3
+double get_bead_radius(double Vq, double n)
+{
+    double r = cbrt(Vq*6.0/(M_PI*(double) n));
+    assert(fabs(Vq - ((double) n*4.0/3.0*M_PI*pow(r, 3))/8.0) < 1e-6);
+    return r;
+}
 
 static const char *
 backend_s(collide3_backend be)
@@ -204,7 +214,9 @@ markdown_timings(config * conf)
     printf("|  ----  | ---: |     ---:         | ---:        | ---:         | ---:     |\n");
     for(i32 n = 16; n < 16*10000000; n*=2)
     {
-        fxx radius = 2.0/cbrt(n);
+        fxx Vq = 0.1;
+        fxx bead_radius = get_bead_radius(Vq, n);
+        fxx detection_distance = 2.0*bead_radius;
         double ntries = 0;
         double t_total = 0;
         double t_scan = 0;
@@ -215,7 +227,7 @@ markdown_timings(config * conf)
             fxx * X = random_points(n);
             collide3_info info = {};
             info.backend = conf->be1;
-            fxx(collide3)(X, n, radius,
+            fxx(collide3)(X, n, detection_distance,
                           &info,
                           NULL, NULL);
             free(X);
@@ -244,7 +256,8 @@ timings_csv(config * conf)
     printf("N, t_ms\n");
     for(i32 n = 16; n < 16*10000000; n*=1.1)
     {
-        fxx radius = 2.0/cbrt(n);
+        fxx radius = get_bead_radius(0.1, n);
+        fxx detection_distance = 2.0*radius;
         fxx ntries = 0;
         double t_total = 0;
         while(t_total < accumulation_time_ms)
@@ -252,7 +265,7 @@ timings_csv(config * conf)
             fxx * X = random_points(n);
             collide3_info info = {};
             info.backend = conf->be1;
-            fxx(collide3)(X, n, radius,
+            fxx(collide3)(X, n, detection_distance,
                           &info,
                           NULL, NULL);
             free(X);

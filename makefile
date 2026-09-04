@@ -27,8 +27,8 @@ CFLAGS+=-fno-trapping-math # neither this
 LDFLAGS+=-flto
 endif
 
-test_collide3_f32: test/test_collide3.c collide3.c
-	$(CC) $(CFLAGS) test/test_collide3.c collide3.c $(LDFLAGS) -o test_collide3_f32
+test_collide3_f32: test/collide3_test.c collide3.c
+	$(CC) $(CFLAGS) test/collide3_test.c collide3.c $(LDFLAGS) -o test_collide3_f32
 
-test_collide3_f64: test/test_collide3.c collide3.c
-	$(CC) $(CFLAGS) -DCOLLIDE3_f64 test/test_collide3.c collide3.c $(LDFLAGS) -o test_collide3_f64
+test_collide3_f64: test/collide3_test.c collide3.c
+	$(CC) $(CFLAGS) -DCOLLIDE3_f64 test/collide3_test.c collide3.c $(LDFLAGS) -o test_collide3_f64
