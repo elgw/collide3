@@ -149,11 +149,10 @@ collide3_spatial(const fxx * restrict D, const u32 N, const fxx d,
     //
     // The current heuristic was found using tests where
     // N=1,000,000, r = 2.0/cbrt(n), some results:
-    // cbrt(N/4) -> 1,315.89 s
-    // cbrt(N/5) -> 1,208.33 s
-    // cbrt(N/6) -> 1,322.54 s
-    // cbrt(N/7) -> 1,507.23 s
-    // cbct(N/8) -> 1,810.87 s
+    // cbrt(N/4) -> 85.4 ms
+    // cbrt(N/5) -> 84.6 ms
+    // cbrt(N/6) -> 87.0 ms
+
     int _nDiv = cbrt(N/5);
     _nDiv < 2 ? _nDiv = 2 : 0;
     const u32 nDiv = _nDiv;
@@ -253,6 +252,7 @@ collide3_spatial(const fxx * restrict D, const u32 N, const fxx d,
 
                 // index of first element to compare with
                 u32 ht_start = bucket_start[hash0];
+
                 // we only compare to later elements in the table
                 ht_start <= kk ? ht_start = kk+1 : 0;
                 // index of last element to compare with
