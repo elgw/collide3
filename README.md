@@ -68,6 +68,10 @@ points or more. That is based on the following timings:
 
 <img src="test/timings.png" width="100%" />
 
+Some clues about the relation between the collision radius and
+performance can be seen here:
+
+<img src="test/vqsweep.png", width="100%" />
 
 <details><summary>Results 64-bit floating points</summary>
 

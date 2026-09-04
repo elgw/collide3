@@ -29,9 +29,11 @@ typedef struct {
     int markdown_timings;
     int csv_timings;
     int chimera;
+    int vqsweep;
     int validate;
     int verbose;
     int timeout;
+
 } config;
 
 // Return a beads radius so that
@@ -250,6 +252,27 @@ markdown_timings(config * conf)
 }
 
 static int
+timings_vqsweep(config * conf)
+{
+    u32 n = conf->n;
+    fxx * X = random_points(n);
+    printf("n, Vq, c_distance, t_total_ms, collisions\n");
+    for(double vq = 0.001; vq <= 2.1; vq*=1.1)
+    {
+        fxx radius = get_bead_radius(vq, n);
+        collide3_info info = {};
+        fxx(collide3)(X, n, 2*radius,
+                      &info,
+                      NULL, NULL);
+        printf("%u, %.4f, %.2e, %.2f, %lu\n",
+               n, vq, 2*radius,
+               info.t_total_ms, info.n_collisions);
+    }
+    free(X);
+    return EXIT_SUCCESS;
+}
+
+static int
 timings_csv(config * conf)
 {
     double accumulation_time_ms = 100;
@@ -416,6 +439,8 @@ static void usage(void){
     printf("--timeout ms\n\t"
            "abort the timings when more than this time has passed for\n\t"
            "a single measurement\n");
+    printf("--vqsweep\n\t"
+          "Same number of spots, varying volume quotient\n");
     printf("--verbose v\n\t"
            "set the verbosity level\n");
     printf("--help\n\t"
@@ -435,6 +460,7 @@ config * parse_command_line(int argc, char ** argv)
         { "verbose",  required_argument, NULL, 'V' },
         { "help",     no_argument,       NULL, 'h' },
         {"timeout",   required_argument, NULL, 'T' },
+        {"vqsweep", no_argument, NULL, 'q'},
         { NULL,           0,                 NULL,   0   }
     };
 
@@ -478,6 +504,9 @@ config * parse_command_line(int argc, char ** argv)
         case 'T':
             conf->timeout = atol(optarg);
             break;
+        case 'q':
+            conf->vqsweep = 1;
+            break;
         }
     }
     return conf;
@@ -505,9 +534,12 @@ int main(int argc, char ** argv)
         validate(conf);
     }
 
-    if(conf->csv_timings)
-    {
+    if(conf->csv_timings){
         timings_csv(conf);
+    }
+
+    if(conf->vqsweep) {
+        timings_vqsweep(conf);
     }
 
     if(conf->chimera){
