@@ -60,6 +60,15 @@ For 32-bit floating points:
 | collide3 |  8,388,608 |           336.98 |      109.59 |       446.56 | 140,789.87 |
 | collide3 | 16,777,216 |           973.58 |      246.32 |     1,219.90 | 281,667.26 |
 
+By default `collide3` use brute force (`be_brute_force`)
+for small problems and switches to `be_spatial` when there are 100
+points or more.
+
+That is based on the following timings:
+
+<img src="test/timings.png" width="100%" />
+
+
 <details><summary>Results 64-bit floating points</summary>
 
 | method   |          N | t_construct [ms] | t_scan [ms] | t_total [ms] |   mem [kb] |
@@ -80,16 +89,6 @@ For 32-bit floating points:
 | collide3 |  8,388,608 |           523.94 |      117.17 |       641.10 | 275,007.60 |
 | collide3 | 16,777,216 |         1,539.67 |      219.36 |     1,759.03 | 550,102.72 |
 
-
-The `collide3_` function use the brute force method (`be_brute_force`)
-for small problems and switches to `be_spatial` when there are 100
-points or more when the backend is set to `be_auto`.
-
-That is based on the following timings
-
-<img src="test/timings.png" width="100%" />
-
-Of course what suits best depends on the machine and problem at hand.
 
 </details>
 
