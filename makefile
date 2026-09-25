@@ -24,6 +24,7 @@ CFLAGS+=-fno-math-errno # Fine since we don't catch them in any case
 CFLAGS+=-ffinite-math-only # Yes, points should be in the domain
 CFLAGS+=-fno-signed-zeros # Don't care about that
 CFLAGS+=-fno-trapping-math # neither this
+CFLAGS+=-march=native
 LDFLAGS+=-flto
 endif
 

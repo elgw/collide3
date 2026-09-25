@@ -4,12 +4,16 @@
 extern "C" {
 #endif
 
+// A collision detector for points in [-1, 1]^3
+// Erik Wernersson 2026
+
+#define COLLIDE3_VERSION_MAJOR 1
+#define COLLIDE3_VERSION_MINOR 0
+#define COLLIDE3_VERSION_PATCH 4
+
+
 #include <stdint.h>
 #include <stdlib.h>
-
-// A collision detector for points in [-1, 1]^3
-// Version 1.0.2
-// Erik Wernersson 2026
 
     typedef enum {
         be_auto = 0,

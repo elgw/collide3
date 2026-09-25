@@ -1,4 +1,4 @@
-# collide3 v1.0.2
+# collide3 v1.0.4
 
 <img src="test/screenshot.png" width="100%" />
 
