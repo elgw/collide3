@@ -39,7 +39,7 @@ typedef float fxx;
 #define fxx(X) X##_f32
 #endif
 
-#define C3_SQUARE(x) (x*x)
+#define C3_SQUARE(x) ((x)*(x))
 
 // hash table entry
 typedef struct {
@@ -150,14 +150,8 @@ collide3_spatial(const fxx * restrict D, const u32 N, const fxx d,
     // Make a decision about the number of buckets
     // per dimensions. Since we only care about the
     // a cubic domain, it will be the same for all dimensions
-    //
-    // The current heuristic was found using tests where
-    // N=1,000,000, r = 2.0/cbrt(n), some results:
-    // cbrt(N/4) -> 85.4 ms
-    // cbrt(N/5) -> 84.6 ms
-    // cbrt(N/6) -> 87.0 ms
 
-    int _nDiv = cbrt(N/5);
+    int _nDiv = cbrt(N/7);
     _nDiv < 2 ? _nDiv = 2 : 0;
     const u32 nDiv = _nDiv;
     const u32 n_buckets = nDiv*nDiv*nDiv;
@@ -166,24 +160,20 @@ collide3_spatial(const fxx * restrict D, const u32 N, const fxx d,
     // Count sort to create the hash table, HT.
     //
 
-    // We will reference this array under several aliases and offsets,
-    // use paper and pen to figure out!
     u32 * bucket_list = calloc(n_buckets+3, sizeof(u32));
     if(bucket_list == NULL) { return EXIT_FAILURE; }
     if(info) {
         info->mem_alloc = (n_buckets+3)*sizeof(u32);
     }
-    u32 * bucket_size = bucket_list + 2;
 
     // Count how many elements that will fall into each bucket.
     for(u32 kk = 0; kk<N; kk++) {
-        bucket_size[hash(nDiv, D+3*kk)]++;
+        bucket_list[hash(nDiv, D+3*kk) + 2]++;
     }
 
     // Integrate the list -- find the start position of each bucket
-    u32 * bucket_writepos = bucket_list + 1;
-    for(u32 kk = 1; kk<=n_buckets; kk++) {
-        bucket_writepos[kk] = bucket_size[kk-1]+bucket_writepos[kk-1];
+    for(u32 kk = 1; kk <= n_buckets; kk++) {
+        bucket_list[kk+1] = bucket_list[kk+1] + bucket_list[kk];
     }
 
     // Create the actual hash table and insert copies
@@ -196,29 +186,28 @@ collide3_spatial(const fxx * restrict D, const u32 N, const fxx d,
     // Accumulates the the write positions
     // so that in the end writepos[kk] is startpos[kk+1]
     entry * HT = malloc(N*sizeof(entry));
-    if(info) {
-        info->mem_alloc += N*sizeof(entry);
-    }
     if(HT == NULL) {
         free(bucket_list);
         return EXIT_FAILURE;
     }
+    if(info) {
+        info->mem_alloc += N*sizeof(entry);
+    }
 
+    // Copy points and their indexes to the table
     for(u32 kk = 0; kk<N; kk++) {
-        u32 h = hash(nDiv, D+3*kk);
-        u32 ht_pos = bucket_writepos[h]; // hash table position
-        bucket_writepos[h]++;
+        const u32 h = hash(nDiv, D+3*kk);
+        const u32 ht_pos = bucket_list[h+1]; // hash table position
+        bucket_list[h+1]++;
         HT[ht_pos].idx = kk;
         HT[ht_pos].X[0] = D[3*kk];
         HT[ht_pos].X[1] = D[3*kk+1];
         HT[ht_pos].X[2] = D[3*kk+2];
     }
 
-    // Note: array this typically use more bits than needed.
-    //       and can be compressed considerably with Elias-Fano encoding
-    //       or by simply storing a few reference points and then offsets
-    //       with fewer bits.
-    u32 * bucket_start = bucket_list;
+    // The bucket list does now contain the start positions of the
+    // bins and is sorted. This could be compressed quite much using a
+    // Elias-Fano encoding or similar.
 
     if(info) {
         clock_gettime(CLOCK_REALTIME, &t1);
@@ -227,16 +216,16 @@ collide3_spatial(const fxx * restrict D, const u32 N, const fxx d,
     }
 
     // Loop over the elements of the hash table, and use
-    // the callback for each downstream hit.
+    // the callback for each detected collision.
     //
     // The bins that we visit are those that could contain
     // a hit under the Manhattan distance, i.e., bins that
     // can't contain any hits might be included.
     //
-    // Although it makes sense to discard bins using a aa box vs
-    // sphere test that costs more than scanning a few extra bins
-    // unless the search radius is much larger than the side length of
-    // each bin, i.e., 2/nDiv.
+    // Although it makes sense to discard bins using an axis-aligned
+    // (aa) box vs sphere test, that costs more than scanning a few
+    // extra bins unless the search radius is much larger than the
+    // side length of each bin, i.e., 2/nDiv.
     u64 counter = 0;
 
     const fxx d2 = C3_SQUARE(d);
@@ -255,33 +244,19 @@ collide3_spatial(const fxx * restrict D, const u32 N, const fxx d,
         for(u32 cc = hc; cc <= hc_max; cc++) {
             for(u32 bb = hb_min; bb <= hb_max; bb++) {
 
-                // last bucket to visit
-
-                const u32 hash1 =
-                    ha_max +
-                    bb*nDiv +
-                    cc*C3_SQUARE(nDiv);
-
-                if(bucket_start[hash1+1]-1 < kk) continue;
-
-                // first bucket to visit
-                const u32 hash0 =
-                    ha_min +
-                    bb*nDiv +
-                    cc*C3_SQUARE(nDiv);
-
                 // index of first element to compare with
-
-
-                u32 ht_start = bucket_start[hash0];
+                u32 ht_start = bucket_list[ha_min +
+                                            bb*nDiv +
+                                            cc*C3_SQUARE(nDiv)];
 
                 // we only compare to later elements in the table
+                // ensures no duplicate collision detections
                 ht_start <= kk ? ht_start = kk+1 : 0;
+
                 // index of last element to compare with
-
-
-                const u32 ht_end = bucket_start[hash1+1];
-
+                const u32 ht_end = bucket_list[ha_max +
+                                                bb*nDiv +
+                                                cc*C3_SQUARE(nDiv) + 1];
 
                 for(u32 pp = ht_start; pp < ht_end; pp++) {
                     const fxx pd2 = eudist2(HT[pp].X, HT[kk].X);

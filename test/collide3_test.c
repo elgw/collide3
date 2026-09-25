@@ -165,6 +165,10 @@ void test_vs_brute_force(u32 n, collide3_backend be)
     // Check if the contacts were found
     for(u32 kk = 0; kk < n; kk++) {
         for(u32 ll = kk+1; ll < n; ll++) {
+            if(C[kk + n*ll] > 1){
+                printf("Duplicated collision recorded\n");
+                exit(EXIT_FAILURE);
+            }
             if(C0[kk + n*ll] != C[kk + n*ll]) {
                 fxx dist = 0;
                 if(C0[kk + n*ll] == 1)
@@ -186,6 +190,7 @@ void test_vs_brute_force(u32 n, collide3_backend be)
                            X[3*ll], X[3*ll+1], X[3*ll+2],
                            dist,
                            radius);
+                    exit(EXIT_FAILURE);
                 }
                 // Only consider a failure if the distance
                 // is not too close to the radius
@@ -330,9 +335,8 @@ example1(void)
 
 
 static int
-validate(config * conf)
+validate(config * conf, u32 ntest)
 {
-    u32 ntest = 10000;
     u32 max_size = 1234;
 
     printf("--- Will perform %u tests comparing to brute force, n < %u\n", ntest, max_size);
@@ -526,12 +530,14 @@ int main(int argc, char ** argv)
         printf("backend: %s\n", backend_s(conf->be1));
     }
 
-    if(conf->markdown_timings){
-        markdown_timings(conf);
+    if(conf->validate){
+        validate(conf, 10000);
+    } else {
+        validate(conf, 10);
     }
 
-    if(conf->validate){
-        validate(conf);
+    if(conf->markdown_timings){
+        markdown_timings(conf);
     }
 
     if(conf->csv_timings){
