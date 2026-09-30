@@ -65,17 +65,17 @@ timespec_diff(struct timespec* end, struct timespec * start)
 
 // Hash function for a single coordinate
 static u32
-hash_coord(const int nDiv, fxx x)
+hash_coord(const i32 nDiv, const fxx x)
 {
-    i32 bin = (i32) ((x+1.0)/2.0 * nDiv);
-    if(bin < 0) { return 0; }
-    if(bin >= nDiv){ return nDiv-1; }
+    const i32 bin = (i32) ((x+1.0)/2.0 * nDiv);
+    if(bin <= 0)     { return 0; }
+    if(bin >= nDiv-1){ return nDiv-1; }
     return bin;
 }
 
 // Hash function for a 3D point
 static u32
-hash(const u32 nDiv, const fxx * X)
+hash(const i32 nDiv, const fxx * X)
 {
     return hash_coord(nDiv, X[0]) +
         nDiv*hash_coord(nDiv, X[1]) +
@@ -114,7 +114,7 @@ collide3_brute_force(const fxx * D, const u32 N, const fxx d,
     for(u32 u = 0; u < N; u++) {
         for(u32 v = u+1; v < N; v++) {
             fxx pd2 = eudist2(D+3*u, D+3*v);
-            if(pd2 < d2) { // squared distances
+            if(pd2 < d2) {
                 cb(u, v, pd2, cb_data);
                 counter++;
             }
@@ -152,18 +152,20 @@ collide3_spatial(const fxx * restrict D, const u32 N, const fxx d,
     // a cubic domain, it will be the same for all dimensions
 
     int _nDiv = cbrt(N/7);
+
     _nDiv < 2 ? _nDiv = 2 : 0;
     const u32 nDiv = _nDiv;
-    const u32 n_buckets = nDiv*nDiv*nDiv;
+    const u32 nDiv2 = nDiv*nDiv;
+    const u32 nDiv3 = nDiv*nDiv*nDiv;
 
     //
     // Count sort to create the hash table, HT.
     //
 
-    u32 * bucket_list = calloc(n_buckets+3, sizeof(u32));
+    u32 * bucket_list = calloc(nDiv3+3, sizeof(u32));
     if(bucket_list == NULL) { return EXIT_FAILURE; }
     if(info) {
-        info->mem_alloc = (n_buckets+3)*sizeof(u32);
+        info->mem_alloc = (nDiv3+3)*sizeof(u32);
     }
 
     // Count how many elements that will fall into each bucket.
@@ -172,7 +174,7 @@ collide3_spatial(const fxx * restrict D, const u32 N, const fxx d,
     }
 
     // Integrate the list -- find the start position of each bucket
-    for(u32 kk = 1; kk <= n_buckets; kk++) {
+    for(u32 kk = 1; kk <= nDiv3; kk++) {
         bucket_list[kk+1] = bucket_list[kk+1] + bucket_list[kk];
     }
 
@@ -206,7 +208,7 @@ collide3_spatial(const fxx * restrict D, const u32 N, const fxx d,
     }
 
     // The bucket list does now contain the start positions of the
-    // bins and is sorted. This could be compressed quite much using a
+    // bins and is sorted. This could be compressed quite much using an
     // Elias-Fano encoding or similar.
 
     if(info) {
@@ -230,38 +232,34 @@ collide3_spatial(const fxx * restrict D, const u32 N, const fxx d,
 
     const fxx d2 = C3_SQUARE(d);
 
-    for(u32 kk = 0; kk<N; kk++) {
+    for(u32 u = 0; u<N; u++) {
         // Figure out which bins might contain a hit
         // note that this requires that the hash function handles out of bounds
-        const u32 ha_min = hash_coord(nDiv, HT[kk].X[0] - d);
-        const u32 ha_max = hash_coord(nDiv, HT[kk].X[0] + d);
-        const u32 hb_min = hash_coord(nDiv, HT[kk].X[1] - d);
-        const u32 hb_max = hash_coord(nDiv, HT[kk].X[1] + d);
-        const u32 hc = hash_coord(nDiv, HT[kk].X[2]); // will never scan backward in the last dimension
-        const u32 hc_max = hash_coord(nDiv, HT[kk].X[2] + d);
+        const u32 ha_min = hash_coord(nDiv, HT[u].X[0] - d);
+        const u32 ha_max = hash_coord(nDiv, HT[u].X[0] + d);
+        const u32 hb_min = hash_coord(nDiv, HT[u].X[1] - d);
+        const u32 hb_max = hash_coord(nDiv, HT[u].X[1] + d);
+        const u32 hc = hash_coord(nDiv, HT[u].X[2]); // will never scan backward in the last dimension
+        const u32 hc_max = hash_coord(nDiv, HT[u].X[2] + d);
 
         // Loop over the "worst" i.e. most strided dimension first
         for(u32 cc = hc; cc <= hc_max; cc++) {
             for(u32 bb = hb_min; bb <= hb_max; bb++) {
 
                 // index of first element to compare with
-                u32 ht_start = bucket_list[ha_min +
-                                            bb*nDiv +
-                                            cc*C3_SQUARE(nDiv)];
+                u32 v = bucket_list[ha_min + bb*nDiv + cc*nDiv2];
 
                 // we only compare to later elements in the table
-                // ensures no duplicate collision detections
-                ht_start <= kk ? ht_start = kk+1 : 0;
+                // ensures no duplicate collision detection
+                v <= u ? v = u+1 : 0;
 
-                // index of last element to compare with
-                const u32 ht_end = bucket_list[ha_max +
-                                                bb*nDiv +
-                                                cc*C3_SQUARE(nDiv) + 1];
+                // compare to all elements before v_stop
+                const u32 v_stop = bucket_list[ha_max + bb*nDiv + cc*nDiv2 + 1];
 
-                for(u32 pp = ht_start; pp < ht_end; pp++) {
-                    const fxx pd2 = eudist2(HT[pp].X, HT[kk].X);
-                    if(pd2 < d2) { // squared distances
-                        cb(HT[pp].idx, HT[kk].idx, pd2, cb_data);
+                for( ; v < v_stop; v++) {
+                    const fxx pd2 = eudist2(HT[u].X, HT[v].X);
+                    if(pd2 < d2) {
+                        cb(HT[v].idx, HT[u].idx, pd2, cb_data);
                         counter++;
                     }
                 }
@@ -281,222 +279,6 @@ collide3_spatial(const fxx * restrict D, const u32 N, const fxx d,
     return EXIT_SUCCESS; // == success
 }
 
-static inline int
-sphere_box_intersects(const fxx * X, const fxx r2,
-                      const fxx mx, const fxx my, const fxx mz,
-                      const fxx hw)
-{
-    // Check if the sphere centered at X, with squared radius r2
-    // intersects the box centered at mx, my, mz and with side
-    // length 2*hw (hw "half width")
-
-    // Find the point inside the box
-    // that is closest to the sphere centre
-    // one dimension at a time.
-    fxx bx = X[0];
-    bx > mx + hw ? bx = mx + hw : 0;
-    bx < mx - hw ? bx = mx - hw : 0;
-    fxx by = X[1];
-    by > my + hw ? by = my + hw : 0;
-    by < my - hw ? by = my - hw : 0;
-    fxx bz = X[2];
-    bz > mz + hw ? bz = mz + hw : 0;
-    bz < mz - hw ? bz = mz - hw : 0;
-    // Finally, check the distance
-    if( C3_SQUARE(bx - X[0]) +
-        C3_SQUARE(by - X[1]) +
-        C3_SQUARE(bz - X[2]) < r2 ) {
-        return 1;
-    }
-    return 0;
-}
-
-static void
-point_vs_hash_table(const entry * restrict HT,
-                    const u32 * restrict bucket_start,
-                    const u32 pp,
-                    const u32 nDiv,
-                    const fxx radius,
-                    const fxx radius2,
-                    u64 * counter,
-                    collide3_cb cb,
-                    void * restrict cb_data)
-{
-    const fxx * X = HT[pp].X;
-
-    const u32 hx = hash_coord(nDiv, X[0]);
-    const u32 hy = hash_coord(nDiv, X[1]);
-    const u32 hz = hash_coord(nDiv, X[2]);
-    const u32 hash0 = hx + nDiv*hy + nDiv*hz*hz;
-
-    u32 xx_min = hash_coord(nDiv, X[0] - radius);
-    u32 xx_max = hash_coord(nDiv, X[0] + radius);
-
-    u32 yy_min = hash_coord(nDiv, X[1] - radius);
-    u32 yy_max = hash_coord(nDiv, X[1] + radius);
-
-    u32 zz_max = hash_coord(nDiv, X[2] + radius);
-
-    const fxx bw = 2.0/nDiv; // bin width
-    const fxx hbw = 1.0/nDiv; // half bin width
-
-    // Loop over the "worst" i.e. most strided dimension first
-    for(u32 zz = hz; zz <= zz_max; zz++) {
-        u32 yy0 = yy_min;
-        zz == hz ? yy0 = hy : 0;
-        for(u32 yy = yy0; yy <= yy_max; yy++) {
-            u32 xx0 = xx_min;
-            (zz == hz) && (yy == hy) ? xx0 = hx : 0;
-            for(u32 xx = xx0 ; xx <= xx_max; xx++) {
-
-                u32 bhash = xx + yy*nDiv + zz*nDiv*nDiv;
-                if(bhash < hash0) { // Only compare to later bins
-                    continue;
-                }
-
-                // See if it is possible that the bin can contain
-                // any points that could collide with X
-                if(! sphere_box_intersects(X, radius2,
-                                           bw*xx + hbw - 1.0,
-                                           bw*yy + hbw - 1.0,
-                                           bw*zz + hbw - 1.0,
-                                           hbw) ) {
-                    continue;
-                }
-
-                // Compare the point to the elements in the bucket
-                u32 bucket0 = bucket_start[bhash];
-                bucket0 <= pp ? bucket0 = pp+1 : 0; // only applies for bucket hash0
-                // index of last element to compare with
-                u32 bucket1 = bucket_start[bhash+1];
-                for(u32 idx = bucket0; idx < bucket1; idx++) {
-                    const fxx pd2 = eudist2(HT[idx].X, X);
-                    if(pd2 < radius2) { // squared distances
-                        cb(HT[pp].idx, HT[idx].idx, pd2, cb_data);
-                        counter[0]++;
-                    }
-                }
-            }
-        }
-    }
-}
-
-static int
-collide3_spatial_sphere(const fxx * restrict D, const u32 N, const fxx d,
-                        collide3_info * info,
-                        collide3_cb cb, void * cb_data)
-{
-    struct timespec t0, t1, t2, t3;
-    if(info) {
-        clock_gettime(CLOCK_REALTIME, &t0);
-    }
-
-    if(cb == NULL) {
-        cb = dummy_cb;
-        cb_data = NULL;
-    }
-
-    const fxx d2 = C3_SQUARE(d); // store squared distance for future use
-
-    // Make a decision about the number of buckets
-    // per dimensions. Since we only care about the
-    // a cubic domain, it will be the same for all dimensions
-    //
-    // The current heuristic was found using tests where
-    // at N=1,000,000
-    // cbrt(N/4) -> 97
-    // cbrt(N/5) -> 92
-    // cbrt(N/6) -> 91
-    // cbrt(N/7) -> 108
-
-    int _nDiv = cbrt(N/5);
-    _nDiv < 2 ? _nDiv = 2 : 0;
-    const u32 nDiv = _nDiv;
-    const u32 n_buckets = nDiv*nDiv*nDiv;
-
-    //
-    // Count sort to create the hash table, HT.
-    //
-
-    // We will reference this array under several aliases and offsets,
-    // use paper and pen to figure out!
-    u32 * bucket_list = calloc(n_buckets+3, sizeof(u32));
-    if(bucket_list == NULL) { return EXIT_FAILURE; }
-    if(info) {
-        info->mem_alloc = (n_buckets+3)*sizeof(u32);
-    }
-    u32 * bucket_size = bucket_list + 2;
-
-    // Count how many elements that will fall into each bucket.
-    for(u32 kk = 0; kk<N; kk++) {
-        bucket_size[hash(nDiv, D+3*kk)]++;
-    }
-
-    // Integrate the list -- find the start position of each bucket
-    u32 * bucket_writepos = bucket_list + 1;
-    for(u32 kk = 1; kk<=n_buckets; kk++) {
-        bucket_writepos[kk] = bucket_size[kk-1]+bucket_writepos[kk-1];
-    }
-
-    // Create the actual hash table and insert copies
-    // of all points tagged with their original indices
-    // i.e. sort the points according to their bucket
-    //
-    // Points are copied to avoid cache misses in the later scanning
-    // phase.
-    //
-    // Accumulates the the write positions
-    // so that in the end writepos[kk] is startpos[kk+1]
-    entry * HT = malloc(N*sizeof(entry));
-    if(info) {
-        info->mem_alloc += N*sizeof(entry);
-    }
-    if(HT == NULL) {
-        free(bucket_list);
-        return EXIT_FAILURE;
-    }
-
-    for(u32 kk = 0; kk<N; kk++) {
-        u32 h = hash(nDiv, D+3*kk);
-        u32 ht_pos = bucket_writepos[h]; // hash table position
-        bucket_writepos[h]++;
-        HT[ht_pos].idx = kk;
-        HT[ht_pos].X[0] = D[3*kk];
-        HT[ht_pos].X[1] = D[3*kk+1];
-        HT[ht_pos].X[2] = D[3*kk+2];
-    }
-
-    u32 * bucket_start = bucket_list;
-
-    if(info) {
-        clock_gettime(CLOCK_REALTIME, &t1);
-        info->t_create_ms = 1000.0 * timespec_diff(&t1, &t0);
-        clock_gettime(CLOCK_REALTIME, &t2);
-    }
-
-    // The loop is over the elements of the hash table,
-    // i.e. not over the order that the elements were given
-    // under the idea that this might reduce cache misses
-    u64 counter = 0;
-    for(u32 kk = 0; kk<N; kk++) {
-        point_vs_hash_table(HT, bucket_start, kk, nDiv,
-                            d, d2,
-                            &counter,
-                            cb, cb_data);
-    }
-
-    free(bucket_list);
-    free(HT);
-    if(info) {
-        clock_gettime(CLOCK_REALTIME, &t3);
-        info->t_scan_ms = 1000.0 * timespec_diff(&t3, &t2);
-        info->t_total_ms = 1000.0 * timespec_diff(&t3, &t0);
-        info->n_collisions = counter;
-    }
-    return EXIT_SUCCESS; // == success
-}
-
-
 static int
 collide3_spatial_lowmem(const fxx * D, const u32 N, const fxx d,
                         collide3_info * info,
@@ -512,7 +294,7 @@ collide3_spatial_lowmem(const fxx * D, const u32 N, const fxx d,
         cb_data = NULL;
     }
 
-    const fxx d2 = C3_SQUARE(d); // store squared distance for future use
+    const fxx d2 = d*d;
 
     int nDiv = cbrt(N/5);
     nDiv < 2 ? nDiv = 2 : 0;

@@ -51,7 +51,7 @@ extern "C" {
 //
 // - info The fields of this struct will be populated. Can be NULL.
 //
-// Returns EXIT_SUCCESS unless a memory allocation error occured.
+// Returns EXIT_SUCCESS unless a memory allocation error occurred.
 //
 // Important: The methods does not check that the points are within
 // the bounds. Points outside of the bounds will cause INEFFICIENT

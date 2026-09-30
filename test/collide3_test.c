@@ -210,26 +210,26 @@ void test_vs_brute_force(u32 n, collide3_backend be)
 static int
 markdown_timings(config * conf)
 {
-    u32 min_tries = 3;
-    u32 min_time = 100;
+    u32 min_tries = 11;
+    u32 min_time = 500;
     printf("--- Will perform some timing experiments\n");
     printf("--- backend: %s\n", backend_s(conf->be1));
-    printf("--- for each n, at least %u iterations are performed\n", min_tries);
-    printf("--- and at least %u ms are used\n", min_time);
+    printf("--- for each N, at least %u samples are taken\n", min_tries);
+    printf("--- and at the timings last for at least %u ms\n", min_time);
     printf("\n");
-    printf("| method |    N | t_construct [ms] | t_scan [ms] | t_total [ms] |  mem [kb] |\n");
-    printf("|  ----  | ---: |     ---:         | ---:        | ---:         | ---:     |\n");
-    for(i32 n = 16; n < 16*10000000; n*=2)
+    printf("| method |    N | n_sample | t_construct [ms] | t_scan [ms] | t_total [ms] |  mem [kb] |\n");
+    printf("|  ----  | ---: |   ---:   | ---:             | ---:        | ---:         | ---:     |\n");
+    for(i32 n = pow(2, 4); n < 16*10000000; n*=2)
     {
         fxx Vq = 0.1;
         fxx bead_radius = get_bead_radius(Vq, n);
         fxx detection_distance = 2.0*bead_radius;
-        double ntries = 0;
+        double n_tries = 0;
         double t_total = 0;
         double t_scan = 0;
         double t_construct = 0;
         double mem_b = 0;
-        while((ntries < min_tries) || (t_total < min_time))
+        while((n_tries < min_tries) || (t_total < min_time))
         {
             fxx * X = random_points(n);
             collide3_info info = {};
@@ -242,13 +242,14 @@ markdown_timings(config * conf)
             t_construct += info.t_create_ms;
             t_scan += info.t_scan_ms;
             mem_b = info.mem_alloc; // same each time
-            ntries++;
+            n_tries++;
         }
-        printf("| collide3 | %'u | %'.3f | %'.3f | %'.3f | %'.0f |\n",
+        printf("| collide3 | %'u | %'u | %'.3f | %'.3f | %'.3f | %'.0f |\n",
                n,
-               t_construct / ntries,
-               t_scan / ntries,
-               t_total / ntries,
+               (uint32_t) n_tries,
+               t_construct / n_tries,
+               t_scan / n_tries,
+               t_total / n_tries,
                mem_b / 1000.0);
     }
     printf("\n");
