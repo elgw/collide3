@@ -207,6 +207,10 @@ collide3_spatial(const fxx * restrict D, const u32 N, const fxx d,
         HT[ht_pos].X[2] = D[3*kk+2];
     }
 
+
+    // To sort the points within each bucket reduces the scan time by
+    // about 1% but increases the construction time by about 50%
+
     // The bucket list does now contain the start positions of the
     // bins and is sorted. This could be compressed quite much using an
     // Elias-Fano encoding or similar.
